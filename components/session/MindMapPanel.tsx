@@ -16,6 +16,7 @@ interface MindMapPanelProps {
   onConnect: (params: Connection) => void;
   onNodeDoubleClick: (event: React.MouseEvent, node: CustomNode) => void;
   handleAddNode: () => void;
+  isReadOnly?: boolean;
 }
 
 const MindMapPanel: React.FC<MindMapPanelProps> = ({
@@ -26,24 +27,27 @@ const MindMapPanel: React.FC<MindMapPanelProps> = ({
   onConnect,
   onNodeDoubleClick,
   handleAddNode,
+  isReadOnly = false,
 }) => {
   return (
     <div style={{ width: '100%', height: '100%', background: '#fff', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-        <Button icon={<PlusCircleOutlined />} onClick={handleAddNode}>
-          Add Topic
-        </Button>
-      </div>
+      {!isReadOnly && (
+        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+          <Button icon={<PlusCircleOutlined />} onClick={handleAddNode}>
+            Add Topic
+          </Button>
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeDoubleClick={onNodeDoubleClick}
-        nodesDraggable
-        nodesConnectable
-        elementsSelectable
+        onNodesChange={isReadOnly ? undefined : onNodesChange}
+        onEdgesChange={isReadOnly ? undefined : onEdgesChange}
+        onConnect={isReadOnly ? undefined : onConnect}
+        onNodeDoubleClick={isReadOnly ? undefined : onNodeDoubleClick}
+        nodesDraggable={!isReadOnly}
+        nodesConnectable={!isReadOnly}
+        elementsSelectable={!isReadOnly}
         fitView
       >
         <Background />

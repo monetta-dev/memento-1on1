@@ -200,6 +200,61 @@ export default function SessionPage() {
 
   const [isEnding, setIsEnding] = useState(false);
 
+  const handleCopyInviteLink = useCallback(() => {
+    const inviteUrl = `${window.location.origin}/session/${params.id}/join`;
+    navigator.clipboard.writeText(inviteUrl)
+      .then(() => {
+        notification.success({
+          message: 'Invite Link Copied',
+          description: 'Share this link with your subordinate to join the session.',
+          placement: 'topRight',
+          duration: 3,
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to copy invite link:', err);
+        notification.error({
+          message: 'Failed to Copy',
+          description: 'Please copy the URL manually.',
+          placement: 'topRight',
+        });
+      });
+  }, [params.id]);
+
+  // Auto-save mindmap changes
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Debounce save to avoid too frequent updates
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (!sessionData) return;
+      
+      try {
+        await updateSession(sessionData.id, {
+          mindMapData: { nodes, edges }
+        });
+        console.log('Mindmap auto-saved');
+      } catch (error) {
+        console.error('Failed to auto-save mindmap:', error);
+      }
+    }, 1000); // 1 second debounce
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [nodes, edges, sessionData, updateSession]);
 
   // エラーキャッチ用のエフェクト
   useEffect(() => {
@@ -316,7 +371,11 @@ export default function SessionPage() {
 
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <SessionHeader subordinate={subordinate} sessionData={sessionData} />
+       <SessionHeader 
+         subordinate={subordinate} 
+         sessionData={sessionData} 
+         onCopyInviteLink={handleCopyInviteLink}
+       />
 
       <Layout>
         {/* Left Side: Video / Visuals */}
