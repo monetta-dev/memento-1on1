@@ -48,13 +48,46 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
           return;
         }
 
-        const deepgram = createClient(data.key);
+        console.log("Using Deepgram access token:", data.key.substring(0, 20) + "...");
+        console.log('Creating Deepgram client with access token');
+        console.log('Access token prefix:', data.key.substring(0, 30) + '...');
 
-        const connection = deepgram.listen.live({
-          model: "nova-2",
-          language: "ja",
-          smart_format: true,
-          diarize: true, // Speaker diarization
+        let deepgram;
+        let connection;
+        
+        try {
+          console.log('Creating Deepgram client with access token...');
+          deepgram = createClient({ accessToken: data.key });
+          
+          console.log('Creating live connection...');
+          connection = deepgram.listen.live({
+            model: "nova-2",
+            language: "ja",
+            smart_format: true,
+            diarize: true,
+          });
+        } catch (err) {
+          console.error('Failed to create Deepgram client or connection:', {
+            error: err instanceof Error ? err.message : err,
+            stack: err instanceof Error ? err.stack : undefined
+          });
+          if (isActive) setConnectionState('disconnected');
+          return;
+        }
+
+        connection.on(LiveTranscriptionEvents.Error, (error) => {
+          console.error('Deepgram Connection Error:', error);
+          if (error && typeof error === 'object') {
+            console.error('Deepgram Error Details:', {
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              raw: JSON.stringify(error),
+              keys: Object.keys(error)
+            });
+          } else {
+            console.error('Deepgram Error is not an object:', typeof error, error);
+          }
         });
 
         connection.on(LiveTranscriptionEvents.Open, () => {

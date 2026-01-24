@@ -49,6 +49,7 @@ describe('API: /api/deepgram/token', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ttl_seconds: 3600 }),
+        signal: expect.any(AbortSignal),
       });
 
       expect(response.status).toBe(200);

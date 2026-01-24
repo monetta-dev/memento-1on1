@@ -120,7 +120,7 @@ describe('TranscriptionHandler', () => {
     });
     
     expect(mockFetch).toHaveBeenCalledWith('/api/deepgram/token');
-    expect(mockCreateClient).toHaveBeenCalledWith('test-dg-token');
+    expect(mockCreateClient).toHaveBeenCalledWith({ accessToken: 'test-dg-token' });
     expect(mockListenLive).toHaveBeenCalledWith({
       model: 'nova-2',
       language: 'ja',
