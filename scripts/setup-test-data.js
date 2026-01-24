@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -72,7 +73,8 @@ async function ensureTestUser() {
   console.log('Checking test user...');
   
   // Try to sign in
-  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: _, error: signInError } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,
   });
@@ -110,32 +112,7 @@ async function ensureTestUser() {
   }
 }
 
-async function cleanupOldTestData() {
-  // Delete test sessions and subordinates (optional)
-  console.log('Cleaning up old test data...');
-  
-  const { error: sessionsError } = await supabase
-    .from('sessions')
-    .delete()
-    .like('theme', 'テスト%');
 
-  if (sessionsError) {
-    console.warn('Failed to cleanup test sessions:', sessionsError.message);
-  } else {
-    console.log('Cleaned up test sessions');
-  }
-
-  const { error: subordinatesError } = await supabase
-    .from('subordinates')
-    .delete()
-    .like('name', 'テスト%');
-
-  if (subordinatesError) {
-    console.warn('Failed to cleanup test subordinates:', subordinatesError.message);
-  } else {
-    console.log('Cleaned up test subordinates');
-  }
-}
 
 async function main() {
   console.log('=== Setting up test data ===\n');

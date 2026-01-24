@@ -1,27 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Layout, Button, Typography, Tag, Alert, notification, Spin } from 'antd';
-import {
-  AudioOutlined, AudioMutedOutlined,
-  VideoCameraOutlined,
-  PhoneOutlined,
-  BulbOutlined, PartitionOutlined,
-  MessageOutlined, PlusCircleOutlined
-} from '@ant-design/icons';
-import { ReactFlow, Background, Controls, Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from '@xyflow/react';
-
-type CustomNode = Node<{ label: string }>;
-import '@xyflow/react/dist/style.css'; // Importing here to ensure it loads
+import { Layout, Typography, notification, Spin } from 'antd';
+import { BulbOutlined } from '@ant-design/icons';
+import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { useRouter, useParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 
+import SessionHeader from '@/components/session/SessionHeader';
+import VideoPanel from '@/components/session/VideoPanel';
+import MindMapPanel from '@/components/session/MindMapPanel';
+import ControlsBar from '@/components/session/ControlsBar';
+import AdvicePanel from '@/components/session/AdvicePanel';
+import TranscriptPanel from '@/components/session/TranscriptPanel';
 
-import LiveKitComponent from '@/components/LiveKitComponent';
-import TranscriptionHandler from '@/components/TranscriptionHandler';
+type CustomNode = Node<{ label: string }>;
 
-const { Header, Content, Sider } = Layout;
-const { Text, Title } = Typography;
+const { Content, Sider } = Layout;
 
 // Mock Data for Simulation (Kept for fallback logic if needed)
 const MOCK_ADVICES = [
@@ -48,14 +44,15 @@ export default function SessionPage() {
 
   // Session State
   const [messages, setMessages] = useState<{ speaker: string, text: string, time: string }[]>([]);
+  const [realTimeAdvice, setRealTimeAdvice] = useState<string>('会話を待っています...');
   const [isMindMapMode, setIsMindMapMode] = useState(false);
   const [micOn, setMicOn] = useState(true); // Re-introduce mic control for transcription handling
   const isAnalyzingRef = useRef<boolean>(false);
   const lastAdviceTimeRef = useRef<number>(0);
   const [remoteAudioStream, setRemoteAudioStream] = useState<MediaStream | null>(null);
   const prevRemoteStreamRef = useRef<MediaStream | null>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
-  const lastFetchedIdRef = useRef<string | null>(null);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
 
   const handleTranscript = useCallback((text: string, speaker: 'manager' | 'subordinate') => {
     const newMessage = {
@@ -144,6 +141,7 @@ export default function SessionPage() {
         const data = await response.json();
         if (data.advice) {
           lastAdviceTimeRef.current = Date.now();
+          setRealTimeAdvice(data.advice);
           notification.info({
             message: 'AI Coach Advice',
             description: data.advice,
@@ -156,6 +154,7 @@ export default function SessionPage() {
         console.error('Failed to fetch AI advice:', error);
         // Fallback to mock advice
         const mockAdvice = MOCK_ADVICES[Math.floor(Math.random() * MOCK_ADVICES.length)];
+        setRealTimeAdvice(mockAdvice);
         notification.info({
           message: 'AI Coach Advice',
           description: mockAdvice,
@@ -179,7 +178,7 @@ export default function SessionPage() {
   }, [messages]);
 
   // MindMap state
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<CustomNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
@@ -194,13 +193,13 @@ export default function SessionPage() {
     setNodes((nds) => [...nds, newNode]);
   }, [nodes.length, setNodes]);
 
-  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: CustomNode) => {
     // Could implement node editing on double click
     console.log('Node double-clicked:', node);
   }, []);
 
   const [isEnding, setIsEnding] = useState(false);
-  const [renderError, setRenderError] = useState<string | null>(null);
+
 
   // エラーキャッチ用のエフェクト
   useEffect(() => {
@@ -246,10 +245,17 @@ export default function SessionPage() {
         } else {
           console.warn('AI summary API returned non-OK status:', response.status);
         }
-      } catch (error) {
-        console.error('Failed to generate AI summary:', error);
-        // Continue with default summary
-      }
+       } catch (error) {
+         console.error('Failed to generate AI summary:', error);
+         // Show warning but continue with default summary
+         notification.warning({
+           message: 'AI Summary Generation Failed',
+           description: 'Using default summary. Session will be saved.',
+           duration: 3,
+           placement: 'topRight'
+         });
+         // Continue with default summary
+       }
 
       // 3. Save data to store
       const currentSessionData = sessions.find(s => s.id === params.id);
@@ -274,14 +280,25 @@ export default function SessionPage() {
       // 4. Redirect to summary page
       console.log('Redirecting to summary page:', `/session/${params.id}/summary`);
       router.push(`/session/${params.id}/summary`);
-    } catch (error) {
-      console.error('Error ending session:', error);
-      notification.error({
-        message: 'Failed to End Session',
-        description: 'Please try again.',
-        placement: 'topRight'
-      });
-    } finally {
+     } catch (error) {
+       console.error('Error ending session:', error);
+       let errorMessage = 'Please try again.';
+       if (error instanceof Error) {
+         if (error.message.includes('network') || error.message.includes('Network')) {
+           errorMessage = 'Network error occurred. Please check your connection and try again.';
+         } else if (error.message.includes('session') || error.message.includes('not found')) {
+           errorMessage = 'Session data not found. Please refresh the page and try again.';
+         } else {
+           errorMessage = `Error: ${error.message}`;
+         }
+       }
+       notification.error({
+         message: 'Failed to End Session',
+         description: errorMessage,
+         placement: 'topRight',
+         duration: 5
+       });
+     } finally {
       setIsEnding(false);
       console.log('handleEndSession finished');
     }
@@ -299,128 +316,50 @@ export default function SessionPage() {
 
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Title level={4} style={{ margin: 0 }}>
-            1on1 with {subordinate?.name || 'Subordinate'}
-          </Title>
-          <Tag color="blue">{sessionData?.theme}</Tag>
-          <Tag color={sessionData?.mode === 'web' ? 'cyan' : 'green'}>{sessionData?.mode === 'web' ? 'Web Mode' : 'Face-to-Face'}</Tag>
-        </div>
-        <div>
-          <Text type="secondary">{new Date().toDateString()}</Text>
-        </div>
-      </Header>
+      <SessionHeader subordinate={subordinate} sessionData={sessionData} />
 
       <Layout>
         {/* Left Side: Video / Visuals */}
         <Content style={{ flex: 2, background: '#000', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-           <TranscriptionHandler isMicOn={micOn} onTranscript={handleTranscript} remoteAudioStream={remoteAudioStream} />
-
           {isMindMapMode ? (
-            <div style={{ width: '100%', height: '100%', background: '#fff', position: 'relative' }}>
-               <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-                 <Button icon={<PlusCircleOutlined />} onClick={handleAddNode}>Add Topic</Button>
-               </div>
-               <ReactFlow 
-                 nodes={nodes} 
-                 edges={edges} 
-                 onNodesChange={onNodesChange}
-                 onEdgesChange={onEdgesChange}
-                 onConnect={onConnect}
-                 onNodeDoubleClick={onNodeDoubleClick}
-                 nodesDraggable
-                 nodesConnectable
-                 elementsSelectable
-                 fitView
-               >
-                 <Background />
-                 <Controls />
-               </ReactFlow>
-            </div>
-           ) : (
-            <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
-              {/* LiveKit Component replaces the mock video UI */}
-              {sessionData ? (
-                <LiveKitComponent
-                  roomName={`session-${sessionData.id}`}
-                  username="Manager" // In real app, get from auth context
-                  mode={sessionData.mode}
-                  onRemoteAudioTrack={handleRemoteAudioTrack}
-                />
-              ) : (
-                <div style={{ color: '#fff', textAlign: 'center', marginTop: 100 }}>Initializing Session...</div>
-              )}
-            </div>
+            <MindMapPanel
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeDoubleClick={onNodeDoubleClick}
+              handleAddNode={handleAddNode}
+            />
+          ) : (
+            <VideoPanel
+              sessionData={sessionData}
+              micOn={micOn}
+              remoteAudioStream={remoteAudioStream}
+              onTranscript={handleTranscript}
+              onRemoteAudioTrack={handleRemoteAudioTrack}
+            />
           )}
 
-          {/* Controls Bar */}
-          <div style={{ height: 60, background: '#1f1f1f', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-            {/* Add back Mic toggle for Deepgram control */}
-            <Button
-              shape="circle"
-              icon={micOn ? <AudioOutlined /> : <AudioMutedOutlined />}
-              type={micOn ? 'default' : 'primary'}
-              danger={!micOn}
-              onClick={() => setMicOn(!micOn)}
-            />
-
-            <Button
-              type="default"
-              shape="round"
-              icon={isMindMapMode ? <VideoCameraOutlined /> : <PartitionOutlined />}
-              onClick={() => setIsMindMapMode(!isMindMapMode)}
-            >
-              {isMindMapMode ? 'Switch to Video' : 'Switch to MindMap'}
-            </Button>
-
-             <Button type="primary" danger shape="round" icon={<PhoneOutlined />} onClick={handleEndSession} loading={isEnding}>
-               End Session
-             </Button>
-          </div>
+          <ControlsBar
+            micOn={micOn}
+            setMicOn={setMicOn}
+            isMindMapMode={isMindMapMode}
+            setIsMindMapMode={setIsMindMapMode}
+            handleEndSession={handleEndSession}
+            isEnding={isEnding}
+          />
         </Content>
 
         {/* Right Side: AI Copilot & Transcript */}
         <Sider width={400} theme="light" style={{ borderLeft: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-            <Title level={5} style={{ margin: 0 }}><BulbOutlined style={{ color: '#faad14' }} /> AI Copilot</Title>
+            <Typography.Title level={5} style={{ margin: 0 }}><BulbOutlined style={{ color: '#faad14' }} /> AI Copilot</Typography.Title>
           </div>
 
-          <div style={{ padding: 16, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Live Advice Area */}
-            <Alert
-              message="Real-time Advice"
-              description="Keep listening. The subordinate seems to be hesitating about the project schedule."
-              type="info"
-              showIcon
-              style={{ border: '1px solid #91caff', background: '#e6f7ff' }}
-            />
-
-            <div style={{ marginTop: 16 }}>
-              <Text strong><MessageOutlined /> Live Transcript</Text>
-              <div style={{ marginTop: 8 }}>
-                {messages.length > 0 ? messages.map((msg, idx) => (
-                  <div key={idx} style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: msg.speaker === 'manager' ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '85%',
-                      padding: '8px 12px',
-                      borderRadius: 12,
-                      background: msg.speaker === 'manager' ? '#1890ff' : '#f0f0f0',
-                      color: msg.speaker === 'manager' ? '#fff' : '#000',
-                      fontSize: 14
-                    }}>
-                      {msg.text}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 10, marginTop: 4 }}>{msg.time}</Text>
-                  </div>
-                )) : (
-                  <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
-                    Waiting for conversation... (Speak into microphone)
-                  </div>
-                )}
-                <div ref={logEndRef} />
-              </div>
-            </div>
+          <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <AdvicePanel realTimeAdvice={realTimeAdvice} />
+            <TranscriptPanel messages={messages} logEndRef={logEndRef} />
           </div>
         </Sider>
       </Layout>

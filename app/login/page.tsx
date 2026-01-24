@@ -1,21 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Card, Form, Input, Typography, message, Divider } from 'antd';
 import { MailOutlined, LockOutlined, GoogleOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/AuthProvider';
+
+export const dynamic = 'force-dynamic';
 
 const { Title, Text } = Typography;
 
 export default function LoginPage() {
   const [form] = Form.useForm();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  // const searchParams = useSearchParams();
   const { signIn, signInWithGoogle, isLoading } = useAuth();
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = '/';
 
   const onFinish = async (values: { email: string; password: string }) => {
     setLoginLoading(true);
@@ -31,6 +33,7 @@ export default function LoginPage() {
   };
 
   return (
+    <Suspense fallback={<div>Loading...</div>}>
     <div style={{ 
       display: 'flex', 
       justifyContent: 'center', 
@@ -127,5 +130,6 @@ export default function LoginPage() {
         </Form>
       </Card>
     </div>
+    </Suspense>
   );
 }

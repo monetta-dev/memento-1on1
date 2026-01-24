@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,11 +28,11 @@ export async function POST(req: NextRequest) {
       isMock: true
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('LINE connect error:', error);
     return NextResponse.json({ 
       error: 'LINE連携の開始に失敗しました',
-      details: error.message
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import { Node, Edge } from '@xyflow/react';
 
 
 export interface TranscriptItem {
@@ -8,6 +9,11 @@ export interface TranscriptItem {
   timestamp: string;
 }
 
+export interface MindMapData {
+  nodes: Node[];
+  edges: Edge[];
+  actionItems?: string[];
+}
 
 export interface Subordinate {
   id: string;
@@ -27,7 +33,7 @@ export interface Session {
   theme: string;
   summary?: string;
   transcript?: TranscriptItem[];
-  mindMapData?: any;
+  mindMapData?: MindMapData;
   status: 'scheduled' | 'completed' | 'live';
   created_at?: string;
 }

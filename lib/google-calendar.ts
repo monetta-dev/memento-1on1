@@ -28,7 +28,7 @@ export async function getGoogleAccessToken(): Promise<string | null> {
 export async function createGoogleCalendarEvent(
   event: CalendarEvent,
   calendarId: string = 'primary'
-): Promise<any> {
+): Promise<unknown> {
   try {
     const accessToken = await getGoogleAccessToken();
     
@@ -82,7 +82,7 @@ export async function listGoogleCalendarEvents(
   timeMin?: Date,
   timeMax?: Date,
   maxResults: number = 10
-): Promise<any> {
+): Promise<unknown> {
   try {
     const accessToken = await getGoogleAccessToken();
     

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+
 
 export async function POST(req: NextRequest) {
   try {
     // 簡易的な認証チェック
-    const authHeader = req.headers.get('authorization');
+
     // 実際にはセッションCookieをチェックする必要がありますが、モック実装ではスキップ
 
     const { event, sessionId } = await req.json();
@@ -35,11 +34,11 @@ export async function POST(req: NextRequest) {
       isMock: true
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Google Calendar scheduling error:', error);
     return NextResponse.json({ 
       error: 'Googleカレンダーイベントの作成に失敗しました',
-      details: error.message
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

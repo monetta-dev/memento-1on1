@@ -128,9 +128,9 @@ function MyVideoConference({ onRemoteAudioTrack }: { onRemoteAudioTrack?: (strea
       // Create a MediaStream from remote audio tracks
       const stream = new MediaStream();
       remoteAudioTracks.forEach(track => {
-        // @ts-ignore
+        // @ts-expect-error: LiveKit track type does not expose mediaStreamTrack directly
         if (track.mediaStreamTrack) {
-          // @ts-ignore
+          // @ts-expect-error: LiveKit track type does not expose mediaStreamTrack directly
           stream.addTrack(track.mediaStreamTrack);
         }
       });

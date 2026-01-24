@@ -24,11 +24,11 @@ export async function POST(req: NextRequest) {
       isMock: true
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('LINE send error:', error);
     return NextResponse.json({ 
       error: 'LINE通知の送信に失敗しました',
-      details: error.message
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

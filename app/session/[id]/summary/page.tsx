@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Layout, Typography, Button, Spin, Card, List, Tag, Divider } from 'antd';
+import { Typography, Button, Spin, Card, List, Tag, Divider } from 'antd';
 import { HomeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { createClientComponentClient } from '@/lib/supabase';
@@ -67,7 +67,7 @@ export default function SessionSummaryPage() {
     return () => {
       isMounted = false;
     };
-  }, [params.id, sessions.length, subordinates.length, getSession]);
+  }, [params.id, sessions.length, subordinates, subordinates.length, getSession]);
 
   // 認証チェックは必要最低限に（副作用を分離）
   useEffect(() => {

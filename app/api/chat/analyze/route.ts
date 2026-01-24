@@ -33,6 +33,7 @@ Analyze the recent conversation transcript provided below.
 3. Provide one concise, actionable piece of advice for the manager to use IMMEDIATELY.
 4. Keep the advice under 100 characters if possible.
 5. Output ONLY the advice text, nothing else.
+6. Respond in Japanese language only.
 `;
 
     // Convert transcript objects to string format

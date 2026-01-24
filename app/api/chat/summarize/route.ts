@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
-
 export async function POST(req: NextRequest) {
   try {
     const { transcript, theme } = await req.json();
@@ -11,6 +8,9 @@ export async function POST(req: NextRequest) {
     if (!transcript || !Array.isArray(transcript)) {
        return NextResponse.json({ error: 'No valid transcript provided' }, { status: 400 });
     }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
     if (!genAI) {
         return NextResponse.json({ 
@@ -24,12 +24,12 @@ export async function POST(req: NextRequest) {
 
     const prompt = `
 You are an expert secretary for engineering managers.
-Summarize the following 1on1 meeting transcript.
+Summarize the following 1on1 meeting transcript in Japanese.
 Theme: "${theme}"
 
 Output valid JSON format with two fields:
-1. "summary": A concise paragraph summarizing the discussion (3-5 sentences).
-2. "actionItems": An array of strings, listing specific tasks or follow-ups.
+1. "summary": A concise paragraph summarizing the discussion in Japanese (3-5 sentences).
+2. "actionItems": An array of strings in Japanese, listing specific tasks or follow-ups.
 
 Transcript:
 ${conversationLog}

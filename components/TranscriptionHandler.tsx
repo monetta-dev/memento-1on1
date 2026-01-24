@@ -77,18 +77,8 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
             });
             mediaRecorder.start(250); // Send chunk every 250ms
 
-            // Start remote audio stream recording if available
-            if (remoteAudioStreamRef.current) {
-              const remoteMediaRecorder = new MediaRecorder(remoteAudioStreamRef.current, { mimeType: 'audio/webm' });
-              remoteMediaRecorderRef.current = remoteMediaRecorder;
-
-              remoteMediaRecorder.addEventListener('dataavailable', (event) => {
-                if (event.data.size > 0 && connection.getReadyState() === 1) {
-                  connection.send(event.data);
-                }
-              });
-              remoteMediaRecorder.start(250);
-            }
+            // Remote audio stream will be handled by the separate useEffect
+            // when connection state becomes 'connected'
           });
         });
 

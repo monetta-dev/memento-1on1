@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Page } from '@playwright/test';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -107,7 +108,7 @@ export async function ensureTestUser() {
     await loginWithEmailPassword();
     console.log('Test user already exists and can log in');
     return true;
-  } catch (error) {
+  } catch {
     // User doesn't exist or can't log in, try to sign up
     console.log('Test user not found, attempting to create...');
   }
@@ -145,7 +146,7 @@ export async function cleanupTestUser() {
 /**
  * Playwright helper: Log in via UI
  */
-export async function loginViaUI(page: any, email?: string, password?: string) {
+export async function loginViaUI(page: Page, email?: string, password?: string) {
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
 
@@ -161,7 +162,7 @@ export async function loginViaUI(page: any, email?: string, password?: string) {
 /**
  * Playwright helper: Log out via UI
  */
-export async function logoutViaUI(page: any) {
+export async function logoutViaUI(page: Page) {
   // Assuming there's a logout button in the UI
   // This needs to be implemented based on actual UI
   await page.goto('/settings');

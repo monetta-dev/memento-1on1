@@ -100,13 +100,13 @@ export default function GoogleCalendarTestPage() {
               }
             }));
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('❌ カレンダーリスト取得エラー:', error);
           setTestResults(prev => ({
             ...prev,
             calendarListCheck: { 
               success: false, 
-              error: error.message 
+              error: error instanceof Error ? error.message : String(error)
             }
           }));
         }
@@ -117,11 +117,11 @@ export default function GoogleCalendarTestPage() {
         }));
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Googleアクセスチェックエラー:', error);
       setTestResults(prev => ({
         ...prev,
-        generalError: { success: false, error: error.message }
+        generalError: { success: false, error: error instanceof Error ? error.message : String(error) }
       }));
     } finally {
       setLoading(false);
@@ -179,16 +179,17 @@ export default function GoogleCalendarTestPage() {
       
       alert(`✅ カレンダーイベントを作成しました！\n${result.htmlLink}`);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ イベント作成エラー:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       setTestResults(prev => ({
         ...prev,
         createEvent: { 
           success: false, 
-          error: error.message 
+          error: errorMessage
         }
       }));
-      alert(`❌ イベント作成失敗: ${error.message}`);
+      alert(`❌ イベント作成失敗: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -447,7 +448,7 @@ export default function GoogleCalendarTestPage() {
               status: '🚀'
             },
           ]}
-          renderItem={(item, index) => (
+          renderItem={(item, _ignored) => ( // eslint-disable-line @typescript-eslint/no-unused-vars
             <List.Item>
               <List.Item.Meta
                 avatar={<span style={{ fontSize: '20px' }}>{item.status}</span>}

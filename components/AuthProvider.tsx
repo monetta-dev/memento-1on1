@@ -22,7 +22,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SKIP_AUTH === 'true') {
-      setUser({ id: 'test-user-id', email: 'test@example.com' } as any);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUser({ id: 'test-user-id', email: 'test@example.com' } as User);
       setIsLoading(false);
       return;
     }
@@ -117,9 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Google OAuth no URL returned');
         alert('Googleログインのリダイレクトに失敗しました。設定を確認してください。');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Google OAuth exception:', err);
-      alert(`Googleログイン例外: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      alert(`Googleログイン例外: ${message}`);
     }
   };
 

@@ -82,7 +82,7 @@ test.describe('PDF Upload and Analysis', () => {
     test.skip();
   });
 
-  test('PDF upload shows error for non-PDF files', async ({ page }) => {
+  test('PDF upload shows error for non-PDF files', async ({ page: _ }) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     // This test requires mocking the file validation
     // For now, skip or implement basic check
     test.skip();

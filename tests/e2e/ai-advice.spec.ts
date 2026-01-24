@@ -58,7 +58,7 @@ test.describe('AI Copilot Advice', () => {
     await expect(page.getByText('Session Completed Successfully')).toBeVisible();
   });
 
-  test('AI advice updates with mock response', async ({ page }) => {
+  test('AI advice updates with mock response', async ({ page: _ }) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     // This test would mock the Gemini API response
     // For now, skip as it requires more complex setup
     test.skip();

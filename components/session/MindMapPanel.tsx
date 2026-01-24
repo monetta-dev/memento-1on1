@@ -1,0 +1,56 @@
+'use client';
+
+import React from 'react';
+import { ReactFlow, Background, Controls, Node, Edge, Connection, OnNodesChange, OnEdgesChange } from '@xyflow/react';
+import { Button } from 'antd';
+import { PlusCircleOutlined } from '@ant-design/icons';
+import '@xyflow/react/dist/style.css';
+
+type CustomNode = Node<{ label: string }>;
+
+interface MindMapPanelProps {
+  nodes: CustomNode[];
+  edges: Edge[];
+  onNodesChange: OnNodesChange<CustomNode>;
+  onEdgesChange: OnEdgesChange<Edge>;
+  onConnect: (params: Connection) => void;
+  onNodeDoubleClick: (event: React.MouseEvent, node: CustomNode) => void;
+  handleAddNode: () => void;
+}
+
+const MindMapPanel: React.FC<MindMapPanelProps> = ({
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
+  onConnect,
+  onNodeDoubleClick,
+  handleAddNode,
+}) => {
+  return (
+    <div style={{ width: '100%', height: '100%', background: '#fff', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+        <Button icon={<PlusCircleOutlined />} onClick={handleAddNode}>
+          Add Topic
+        </Button>
+      </div>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDoubleClick={onNodeDoubleClick}
+        nodesDraggable
+        nodesConnectable
+        elementsSelectable
+        fitView
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
+};
+
+export default MindMapPanel;

@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
       isMock: true
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('LINE disconnect error:', error);
     return NextResponse.json({ 
       error: 'LINE連携の解除に失敗しました',
-      details: error.message
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

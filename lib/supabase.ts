@@ -18,9 +18,10 @@ export const createClientComponentClient = () => {
 };
 
 // For server components (requires cookies)
-export const createServerClient = (cookies: {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const createServerClient = (_: {
   getAll: () => { name: string; value: string }[];
-  setAll: (cookies: { name: string; value: string; options: any }[]) => void;
+  setAll: (cookies: { name: string; value: string; options: Record<string, unknown> }[]) => void;
 }) => {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');

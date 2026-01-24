@@ -59,7 +59,7 @@ test.describe('MindMap Operations', () => {
     await expect(page.locator('.react-flow__node')).toHaveCount(initialCount + 2, { timeout: 5000 });
   });
 
-  test('MindMap supports keyboard delete', async ({ page }) => {
+  test('MindMap supports keyboard delete', async ({ page: _ }) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     // This test requires selecting a node and pressing Delete
     // For now, test basic functionality
     test.skip();

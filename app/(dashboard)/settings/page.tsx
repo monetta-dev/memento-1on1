@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Menu } from 'antd';
+import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
 import { createClientComponentClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -56,7 +57,8 @@ export default function SettingsPage() {
   const handleGoogleConnect = async () => {
     setGoogleLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { data: _, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -72,9 +74,10 @@ export default function SettingsPage() {
       
       // OAuth flow will redirect, so we don't need to update state here
       message.info('Redirecting to Google for authorization...');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Google OAuth error:', error);
-      message.error(`Failed to connect Google Calendar: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      message.error(`Failed to connect Google Calendar: ${errorMessage}`);
       setGoogleLoading(false);
     }
   };
@@ -106,7 +109,8 @@ export default function SettingsPage() {
       });
       
       if (response.ok) {
-        const data = await response.json();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const _ = await response.json();
         setLineConnected(true);
         message.success('LINE連携を開始しました');
       } else {
@@ -193,7 +197,7 @@ export default function SettingsPage() {
     );
   }
 
-   const userMenuItems = [
+   const userMenuItems: MenuProps['items'] = [
      { 
        key: 'email', 
        label: userEmail,
@@ -219,7 +223,7 @@ export default function SettingsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>設定</Title>
-        <Dropdown menu={{ items: userMenuItems as any }} placement="bottomRight">
+         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
           <Button icon={<UserOutlined />}>
             {userEmail.split('@')[0]}
           </Button>

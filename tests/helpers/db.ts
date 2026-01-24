@@ -26,8 +26,8 @@ export interface Session {
   theme?: string;
   summary?: string;
   status?: 'scheduled' | 'live' | 'completed';
-  transcript?: any[]; // JSONB array
-  mind_map_data?: any; // JSONB object
+  transcript?: unknown[]; // JSONB array
+  mind_map_data?: Record<string, unknown>; // JSONB object
 }
 
 /**

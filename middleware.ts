@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
+        setAll(cookiesToSet: { name: string; value: string; options: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
@@ -37,11 +37,13 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
-  try {
-    await supabase.auth.getUser();
-  } catch (error) {
-    console.error('❌ supabase.auth.getUser() エラー:', error);
+  // Refresh session if expired - skip if SKIP_AUTH is enabled
+  if (process.env.SKIP_AUTH !== 'true') {
+    try {
+      await supabase.auth.getUser();
+    } catch (error) {
+      console.error('❌ supabase.auth.getUser() エラー:', error);
+    }
   }
 
   // Define protected routes
