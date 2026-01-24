@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { loginViaUI } from '../helpers/auth';
 
 test.describe('AI Copilot Advice', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Navigate to dashboard
-    await page.goto('/');
+    // Log in with test user
+    await loginViaUI(page);
   });
 
   test('AI Copilot shows advice section in session', async ({ page }) => {

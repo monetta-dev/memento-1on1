@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { loginViaUI } from '../helpers/auth';
 
 test.describe('MindMap Operations', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Navigate to dashboard and start session
-    await page.goto('/');
-    await expect(page.getByText('Start 1on1')).toBeVisible();
+    // Log in with test user
+    await loginViaUI(page);
     await page.getByText('Start 1on1').click();
     await expect(page.getByRole('dialog')).toBeVisible();
     
@@ -62,7 +62,7 @@ test.describe('MindMap Operations', () => {
   test('MindMap supports keyboard delete', async ({ page }) => {
     // This test requires selecting a node and pressing Delete
     // For now, test basic functionality
-    test.skip('Keyboard interactions with React Flow are complex to test');
+    test.skip();
   });
 
   test('MindMap clear selection button works', async ({ page }) => {

@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { loginViaUI } from '../helpers/auth';
 
 test.describe('Face-to-Face Mode', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Navigate to dashboard and start session
-    await page.goto('/');
-    await expect(page.getByText('Start 1on1')).toBeVisible();
+    // Log in with test user
+    await loginViaUI(page);
     await page.getByText('Start 1on1').click();
     await expect(page.getByRole('dialog')).toBeVisible();
     

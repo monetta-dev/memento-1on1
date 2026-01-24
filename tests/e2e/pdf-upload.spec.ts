@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { loginViaUI } from '../helpers/auth';
 
 test.describe('PDF Upload and Analysis', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Navigate to CRM page
+    // Log in with test user and navigate to CRM
+    await loginViaUI(page);
     await page.goto('/crm');
   });
 
@@ -77,7 +79,7 @@ test.describe('PDF Upload and Analysis', () => {
     
     // Test would continue with PDF upload using mocked API
     // For now, just verify the mock works
-    test.skip('Complete PDF upload test with mock needs more implementation');
+    test.skip();
   });
 
   test('PDF upload shows error for non-PDF files', async ({ page }) => {

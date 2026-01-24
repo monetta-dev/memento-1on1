@@ -27,7 +27,7 @@ export interface Session {
   theme: string;
   summary?: string;
   transcript?: TranscriptItem[];
-  mindMapData?: { nodes: unknown[]; edges: unknown[] };
+  mindMapData?: any;
   status: 'scheduled' | 'completed' | 'live';
   created_at?: string;
 }

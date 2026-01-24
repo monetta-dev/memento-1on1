@@ -1,9 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { loginViaUI } from '../helpers/auth';
 
-test.describe.skip('Google Calendar連携とセッション作成', () => {
+test.describe('Google Calendar連携とセッション作成', () => {
   // 注: これらのテストは認証が必要です
   // テストを実行する前に、手動でログインするか、
   // 環境変数 TEST_EMAIL と TEST_PASSWORD を設定してください
+
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+  });
 
   test('セッション作成時に日時を指定できる', async ({ page }) => {
     await page.goto('/');
@@ -15,8 +20,8 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     await expect(page.getByText('Start New 1on1 Session')).toBeVisible();
     
     // 部下を選択
-    await page.locator('.ant-select-selector').first().click();
-    await page.getByText('山田 太郎').click();
+    await page.locator('#subordinateId').click();
+    await page.locator('.ant-select-item-option').first().click();
     
     // モードを選択（デフォルトでWeb）
     await page.getByText('Face-to-Face').click();
@@ -43,7 +48,7 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     await page.goto('/test/google-calendar');
     
     // ページタイトルを確認
-    await expect(page.getByText('Google Calendar連携テスト')).toBeVisible();
+    await expect(page.getByText('📅 Google Calendar連携テスト')).toBeVisible();
     
     // 現在のセッション状態が表示されることを確認
     await expect(page.getByText('現在のセッション状態')).toBeVisible();
@@ -52,7 +57,7 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     await expect(page.getByRole('button', { name: 'すべてのテストを実行' })).toBeVisible();
     
     // カレンダーイベント作成フォームが表示されることを確認
-    await expect(page.getByText('カレンダーイベント作成テスト')).toBeVisible();
+    await expect(page.getByText('カレンダーイベント作成テスト').first()).toBeVisible();
   });
 
   test('部下管理画面で部下を追加できる', async ({ page }) => {
@@ -64,11 +69,13 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     // モーダルが表示されることを確認
     await expect(page.getByText('Add New Subordinate')).toBeVisible();
     
-    // フォームに入力
-    await page.getByLabel('Name').fill('テスト部下');
+    // フォームに入力 - use unique name to avoid duplicates
+    const uniqueName = `テスト部下${Date.now()}`;
+    await page.getByRole('textbox', { name: 'Name' }).fill(uniqueName);
     await page.getByLabel('Department').click();
-    await page.getByText('Development').click();
-    await page.getByLabel('Role').fill('テスト役職');
+    await page.waitForSelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+    await page.locator('.ant-select-item-option').filter({ hasText: 'Development' }).click();
+    await page.getByRole('textbox', { name: 'Role' }).fill('テスト役職');
     
     // 追加ボタンをクリック
     await page.getByRole('button', { name: 'OK' }).click();
@@ -77,7 +84,7 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     await expect(page.getByText('Subordinate added successfully')).toBeVisible();
     
     // テーブルに新しい部下が表示されることを確認
-    await expect(page.getByText('テスト部下')).toBeVisible();
+    await expect(page.getByText(uniqueName)).toBeVisible();
   });
 
   test('セッション一覧に新しいセッションが表示される', async ({ page }) => {
@@ -88,7 +95,7 @@ test.describe.skip('Google Calendar連携とセッション作成', () => {
     
     // テーブルに少なくとも1行あることを確認
     const tableRows = page.locator('.ant-table-row');
-    await expect(tableRows).toHaveCountGreaterThan(0);
+    await expect(tableRows).not.toHaveCount(0);
   });
 
   // 注: 実際のGoogle Calendar API連携のテストは、実際のAPI呼び出しが必要なため

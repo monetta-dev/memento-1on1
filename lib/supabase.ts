@@ -30,3 +30,18 @@ export const createServerClient = (cookies: {
   // In a real implementation, you would use createServerClient from @supabase/ssr
   return createClient(supabaseUrl, supabaseAnonKey);
 };
+
+// For route handlers (App Router)
+export const createRouteHandlerClient = () => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  
+  // Create a simple client for route handlers
+  // Note: For proper auth, you'd want to use createServerClient with cookies
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+    }
+  });
+};
