@@ -26,13 +26,14 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({ messages, logEndRef }
         </span>
       }
       size="small"
+      variant="outlined"
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column'
+      }}
       styles={{
-        root: { 
-          width: '100%', 
-          height: '100%', 
-          display: 'flex', 
-          flexDirection: 'column'
-        },
         body: { 
           flex: 1, 
           minHeight: 0, 
