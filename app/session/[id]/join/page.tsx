@@ -65,7 +65,7 @@ export default function JoinSessionPage() {
     setRemoteAudioStream(stream);
   }, []);
 
-  const handleTranscript = useCallback((text: string, speaker: 'manager' | 'subordinate') => {
+  const handleTranscript = useCallback((_text: string, _speaker: 'manager' | 'subordinate') => {
     // Subordinate view doesn't need to handle transcripts
   }, []);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Layout, Typography, notification, Spin, Row, Col, Card } from 'antd';
+import { Layout, notification, Spin, Row, Col, Card } from 'antd';
 import { BulbOutlined } from '@ant-design/icons';
 import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -184,7 +184,7 @@ export default function SessionPage() {
     setNodes((nds) => [...nds, newNode]);
   }, [nodes.length, setNodes]);
 
-  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: CustomNode) => {
+  const onNodeDoubleClick = useCallback((_event: React.MouseEvent, _node: CustomNode) => {
     // Could implement node editing on double click
   }, []);
 

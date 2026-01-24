@@ -59,18 +59,17 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="light">
+       <Sider trigger={null} collapsible collapsed={collapsed} style={{ background: '#fff' }}>
         <div style={{ height: 32, margin: 16, background: 'rgba(0, 0, 0, 0.2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {!collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>Memento 1on1</span>}
             {collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>M</span>}
         </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          defaultSelectedKeys={['dashboard']}
-          selectedKeys={[getSelectedKey()]}
-          items={items}
-        />
+         <Menu
+           mode="inline"
+           defaultSelectedKeys={['dashboard']}
+           selectedKeys={[getSelectedKey()]}
+           items={items}
+         />
       </Sider>
       <Layout>
         <Header style={{ padding: 0, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 24 }}>
