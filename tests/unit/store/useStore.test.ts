@@ -170,7 +170,7 @@ describe('useStore', () => {
           theme: 'Progress', 
           status: 'completed' as const,
           transcript: [],
-          mindMapData: {}
+          mindMapData: { nodes: [], edges: [] }
         },
         { 
           id: '2', 
@@ -180,7 +180,7 @@ describe('useStore', () => {
           theme: 'Feedback', 
           status: 'live' as const,
           transcript: [],
-          mindMapData: {}
+          mindMapData: { nodes: [], edges: [] }
         },
       ];
 
@@ -202,13 +202,117 @@ describe('useStore', () => {
           theme: 'Progress', 
           status: 'completed' as const,
           transcript: [],
-          mindMapData: {}
+          mindMapData: { nodes: [], edges: [] }
         }],
       });
       store = useStore.getState();
 
       const session = store.getSession('999');
       expect(session).toBeUndefined();
+    });
+  });
+
+  describe('updateSession', () => {
+    it('should update session with mindMapData and trigger Supabase update', async () => {
+      const mockSession = {
+        id: '1',
+        subordinateId: '1',
+        date: '2023-01-01',
+        mode: 'face-to-face' as const,
+        theme: 'Progress',
+        status: 'live' as const,
+        transcript: [],
+        mindMapData: { nodes: [], edges: [] }
+      };
+
+      useStore.setState({ sessions: [mockSession] });
+      store = useStore.getState();
+
+      const newMindMapData = {
+        nodes: [{ id: '1', position: { x: 0, y: 0 }, data: { label: 'Test Node' } }],
+        edges: [],
+        actionItems: ['Test action']
+      };
+
+      // Setup mock for Supabase update chain: from('sessions').update(data).eq('id', '1').select().single()
+      const mockSingle = vi.fn().mockResolvedValue({ data: { id: '1' }, error: null });
+      const mockSelect = vi.fn().mockReturnValue({ single: mockSingle });
+      const mockEq = vi.fn().mockReturnValue({ select: mockSelect });
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+      mockSupabase.from.mockReturnValue({ update: mockUpdate });
+
+      await store.updateSession('1', { mindMapData: newMindMapData });
+
+      // Check store update
+      const updatedStore = useStore.getState();
+      expect(updatedStore.sessions[0].mindMapData).toEqual(newMindMapData);
+
+      // Check Supabase call
+      expect(mockSupabase.from).toHaveBeenCalledWith('sessions');
+      expect(mockUpdate).toHaveBeenCalledWith({ mind_map_data: newMindMapData });
+      expect(mockEq).toHaveBeenCalledWith('id', '1');
+      expect(mockSelect).toHaveBeenCalled();
+      expect(mockSingle).toHaveBeenCalled();
+    });
+
+    it('should update session status to completed and trigger Supabase update', async () => {
+      const mockSession = {
+        id: '1',
+        subordinateId: '1',
+        date: '2023-01-01',
+        mode: 'face-to-face' as const,
+        theme: 'Progress',
+        status: 'live' as const,
+        transcript: [],
+        mindMapData: { nodes: [], edges: [] }
+      };
+
+      useStore.setState({ sessions: [mockSession] });
+      store = useStore.getState();
+
+      // Setup mock for Supabase update
+      const mockUpdate = vi.fn().mockResolvedValue({ error: null });
+      const mockEq = vi.fn().mockReturnValue({ update: mockUpdate });
+      mockSupabase.from.mockReturnValue({ eq: mockEq });
+
+      await store.updateSession('1', { status: 'completed' });
+
+      // Check store update
+      const updatedStore = useStore.getState();
+      expect(updatedStore.sessions[0].status).toBe('completed');
+
+      // Check Supabase call
+      expect(mockSupabase.from).toHaveBeenCalledWith('sessions');
+      expect(mockEq).toHaveBeenCalledWith('id', '1');
+      expect(mockUpdate).toHaveBeenCalledWith({ status: 'completed' });
+    });
+
+    it('should handle Supabase update error', async () => {
+      const mockSession = {
+        id: '1',
+        subordinateId: '1',
+        date: '2023-01-01',
+        mode: 'face-to-face' as const,
+        theme: 'Progress',
+        status: 'live' as const,
+        transcript: [],
+        mindMapData: { nodes: [], edges: [] }
+      };
+
+      useStore.setState({ sessions: [mockSession] });
+      store = useStore.getState();
+
+      const mockError = new Error('Update failed');
+      const mockUpdate = vi.fn().mockResolvedValue({ error: mockError });
+      const mockEq = vi.fn().mockReturnValue({ update: mockUpdate });
+      mockSupabase.from.mockReturnValue({ eq: mockEq });
+
+      // Should not throw error
+      await store.updateSession('1', { status: 'completed' });
+
+      // Store should still be updated optimistically
+      const updatedStore = useStore.getState();
+      expect(updatedStore.sessions[0].status).toBe('completed');
     });
   });
 });

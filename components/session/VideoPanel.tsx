@@ -17,6 +17,7 @@ interface VideoPanelProps {
   remoteAudioStream: MediaStream | null;
   onTranscript: (text: string, speaker: 'manager' | 'subordinate') => void;
   onRemoteAudioTrack: (stream: MediaStream | null) => void;
+  username?: string;
 }
 
 const VideoPanel: React.FC<VideoPanelProps> = ({
@@ -25,6 +26,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   remoteAudioStream,
   onTranscript,
   onRemoteAudioTrack,
+  username = "Manager",
 }) => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
@@ -37,7 +39,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
       {sessionData ? (
         <LiveKitComponent
           roomName={`session-${sessionData.id}`}
-          username="Manager"
+          username={username}
           mode={sessionData.mode}
           onRemoteAudioTrack={onRemoteAudioTrack}
         />

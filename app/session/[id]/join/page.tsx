@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Layout, Typography, Spin } from 'antd';
+import { Layout, Typography, Spin, notification, Card } from 'antd';
 import { Node, Edge, useNodesState, useEdgesState } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 import SessionHeader from '@/components/session/SessionHeader';
 import VideoPanel from '@/components/session/VideoPanel';
@@ -19,6 +19,7 @@ type CustomNode = Node<{ label: string }>;
 
 export default function JoinSessionPage() {
   const params = useParams();
+  const router = useRouter();
   const sessions = useStore(state => state.sessions);
   const subordinates = useStore(state => state.subordinates);
   const fetchSessions = useStore(state => state.fetchSessions);
@@ -31,10 +32,10 @@ export default function JoinSessionPage() {
 
   const hasFetchedRef = useRef<string | null>(null);
 
+  // Debug log for mindmap mode
   useEffect(() => {
     if (hasFetchedRef.current === params.id) return;
     
-    console.log('Fetching session data for subordinate join:', params.id);
     try {
       fetchSessions();
       fetchSubordinates();
@@ -66,7 +67,6 @@ export default function JoinSessionPage() {
 
   const handleTranscript = useCallback((text: string, speaker: 'manager' | 'subordinate') => {
     // Subordinate view doesn't need to handle transcripts
-    console.log('Transcript received:', { text, speaker });
   }, []);
 
   // Load mindmap data from session
@@ -92,7 +92,7 @@ export default function JoinSessionPage() {
   useEffect(() => {
     if (!sessionData?.id || !supabase) return;
 
-    const subscription = supabase
+    const channel = supabase
       .channel(`session-${sessionData.id}`)
       .on(
         'postgres_changes',
@@ -103,22 +103,50 @@ export default function JoinSessionPage() {
           filter: `id=eq.${sessionData.id}`,
         },
         (payload) => {
+          // Handle mindmap updates
           const newMindMapData = payload.new.mind_map_data;
           if (newMindMapData && newMindMapData.nodes && newMindMapData.edges) {
             setNodes(newMindMapData.nodes);
             setEdges(newMindMapData.edges || []);
-            console.log('Mindmap updated via realtime');
+          }
+          
+          // Handle session status changes
+          const newStatus = payload.new.status;
+          if (newStatus === 'completed') {
+            notification.info({
+              message: 'Session Ended',
+              description: 'The manager has ended the session. You will be redirected in 5 seconds.',
+              placement: 'topRight',
+              duration: 5,
+            });
+            
+            // Redirect to dashboard after 5 seconds
+            setTimeout(() => {
+              router.push('/');
+            }, 5000);
           }
         }
-      )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
-      });
+      );
+
+    // Subscribe and handle errors
+    channel.subscribe((status, err) => {
+       if (status === 'CHANNEL_ERROR') {
+        console.error('Realtime subscription error:', err);
+        notification.error({
+          message: 'Connection Error',
+          description: 'Failed to connect to realtime updates. Please refresh the page.',
+          placement: 'topRight',
+          duration: 5,
+        });
+       } else if (status === 'SUBSCRIBED') {
+        } else if (status === 'CLOSED') {
+       }
+    });
 
     return () => {
-      subscription.unsubscribe();
+      supabase?.removeChannel(channel);
     };
-  }, [sessionData?.id, setNodes, setEdges]);
+  }, [sessionData?.id, setNodes, setEdges, router]);
 
   // Update mindmap when session data changes
   useEffect(() => {
@@ -146,62 +174,93 @@ export default function JoinSessionPage() {
 
       <Layout>
         {/* Main Content: Video / MindMap */}
-        <Content style={{ flex: 3, background: '#000', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          {isMindMapMode ? (
-            <MindMapPanel
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={() => {}} // Read-only
-              onEdgesChange={() => {}} // Read-only
-              onConnect={() => {}} // Read-only
-              onNodeDoubleClick={() => {}} // Read-only
-              handleAddNode={() => {}} // Read-only
-              isReadOnly={true}
-            />
-          ) : (
-            <VideoPanel
-              sessionData={sessionData}
-              micOn={micOn}
-              remoteAudioStream={remoteAudioStream}
-              onTranscript={handleTranscript}
-              onRemoteAudioTrack={handleRemoteAudioTrack}
-            />
-          )}
+        <Content style={{ 
+          flex: isMindMapMode ? 1 : 3, 
+          background: '#000', 
+          position: 'relative', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            {isMindMapMode ? (
+              <MindMapPanel
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={() => {}} // Read-only
+                onEdgesChange={() => {}} // Read-only
+                onConnect={() => {}} // Read-only
+                onNodeDoubleClick={() => {}} // Read-only
+                handleAddNode={() => {}} // Read-only
+                isReadOnly={true}
+              />
+            ) : (
+              <VideoPanel
+                sessionData={sessionData}
+                micOn={micOn}
+                remoteAudioStream={remoteAudioStream}
+                onTranscript={handleTranscript}
+                onRemoteAudioTrack={handleRemoteAudioTrack}
+                username={subordinate?.name || "Subordinate"}
+              />
+            )}
+          </div>
 
           <SubordinateControlsBar
             micOn={micOn}
             setMicOn={setMicOn}
             isMindMapMode={isMindMapMode}
             setIsMindMapMode={setIsMindMapMode}
+            onLeaveSession={() => router.push('/')}
           />
         </Content>
 
-        {/* Right Side: Minimal info panel */}
-        <Sider width={300} theme="light" style={{ borderLeft: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-            <Typography.Title level={5} style={{ margin: 0 }}>Session Info</Typography.Title>
-          </div>
+        {/* Right Side: Minimal info panel - hidden in mindmap mode */}
+        {!isMindMapMode && (
+           <Sider width={300} theme="light" style={{ 
+            borderLeft: '1px solid #f0f0f0', 
+            display: 'flex', 
+            flexDirection: 'column',
+            overflow: 'hidden',
+            height: '100%'
+          }}>
+            <Card
+              title="Session Info"
+              size="small"
+              styles={{
+                root: { 
+                  width: '100%', 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column'
+                },
+                body: { 
+                  flex: 1, 
+                  minHeight: 0, 
+                  padding: '16px',
+                  overflowY: 'auto'
+                }
+              }}
+            >
+              <Typography.Paragraph>
+                You are participating in a 1on1 session as <strong>{subordinate?.name || 'Subordinate'}</strong>.
+              </Typography.Paragraph>
+              
+              <div style={{ marginTop: 20 }}>
+                <Typography.Text strong>Theme:</Typography.Text>
+                <Typography.Paragraph>{sessionData.theme}</Typography.Paragraph>
+              </div>
 
-          <div style={{ padding: 16, flex: 1 }}>
-            <Typography.Paragraph>
-              You are participating in a 1on1 session as <strong>{subordinate?.name || 'Subordinate'}</strong>.
-            </Typography.Paragraph>
-            
-            <div style={{ marginTop: 20 }}>
-              <Typography.Text strong>Theme:</Typography.Text>
-              <Typography.Paragraph>{sessionData.theme}</Typography.Paragraph>
-            </div>
-
-            <div style={{ marginTop: 20 }}>
-              <Typography.Text strong>Instructions:</Typography.Text>
-              <ul style={{ marginTop: 8, paddingLeft: 16 }}>
-                <li>Toggle between video and mindmap view using the buttons below</li>
-                 <li>Mindmap is synchronized with your manager&apos;s view</li>
-                <li>Your microphone is {micOn ? 'ON' : 'OFF'}</li>
-              </ul>
-            </div>
-          </div>
-        </Sider>
+              <div style={{ marginTop: 20 }}>
+                <Typography.Text strong>Instructions:</Typography.Text>
+                <ul style={{ marginTop: 8, paddingLeft: 16 }}>
+                  <li>Toggle between video and mindmap view using the buttons below</li>
+                  <li>Mindmap is synchronized with your manager&apos;s view</li>
+                  <li>Your microphone is {micOn ? 'ON' : 'OFF'}</li>
+                </ul>
+              </div>
+            </Card>
+          </Sider>
+        )}
       </Layout>
     </Layout>
   );

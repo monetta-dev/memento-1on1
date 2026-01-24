@@ -48,11 +48,16 @@ export async function middleware(request: NextRequest) {
 
   // Define protected routes
   const protectedRoutes = ['/', '/session', '/crm', '/settings'];
-  const isProtectedRoute = protectedRoutes.some(route => 
-    route === '/' 
-      ? request.nextUrl.pathname === '/'
-      : request.nextUrl.pathname.startsWith(route)
-  );
+  const isProtectedRoute = protectedRoutes.some(route => {
+    if (route === '/') {
+      return request.nextUrl.pathname === '/';
+    }
+    // Exclude /session/*/join from protected routes
+    if (route === '/session' && request.nextUrl.pathname.includes('/join')) {
+      return false;
+    }
+    return request.nextUrl.pathname.startsWith(route);
+  });
 
   // Auth routes
   const authRoutes = ['/login', '/signup', '/forgot-password'];

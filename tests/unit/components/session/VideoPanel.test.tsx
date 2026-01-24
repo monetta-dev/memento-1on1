@@ -50,6 +50,7 @@ vi.mock('@livekit/components-react', () => ({
   RoomAudioRenderer: () => <div data-testid="room-audio-renderer" />,
   ControlBar: () => <div data-testid="control-bar" />,
   useTracks: useTracksMock,
+  useParticipants: vi.fn(() => []),
 }));
 
 // Mock @livekit/components-styles (CSS import)

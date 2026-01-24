@@ -187,6 +187,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateSession: async (id, updates) => {
     if (!supabase) return;
+    console.log('updateSession called:', { id, updates });
     // Optimistic update
     set((state) => ({
       sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
@@ -197,12 +198,36 @@ export const useStore = create<AppState>((set, get) => ({
     if (updates.status) dbUpdates.status = updates.status;
     if (updates.summary) dbUpdates.summary = updates.summary;
     if (updates.transcript) dbUpdates.transcript = updates.transcript;
-    if (updates.mindMapData) dbUpdates.mind_map_data = updates.mindMapData;
+    if (updates.mindMapData) {
+      // Log mindmap data structure for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('MindMapData to save:', {
+          nodesCount: updates.mindMapData.nodes?.length || 0,
+          edgesCount: updates.mindMapData.edges?.length || 0,
+          nodesSample: updates.mindMapData.nodes?.slice(0, 1),
+          edgesSample: updates.mindMapData.edges?.slice(0, 1),
+        });
+      }
+      dbUpdates.mind_map_data = updates.mindMapData;
+    }
 
-    const { error } = await supabase.from('sessions').update(dbUpdates).eq('id', id);
-    if (error) {
-      console.error("Failed to sync session update", error);
-      // Revert or show error could be handled here
+    console.log('Updating Supabase session with:', dbUpdates);
+    try {
+      const { error, data } = await supabase
+        .from('sessions')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Failed to sync session update", error);
+        // Revert or show error could be handled here
+      } else {
+        console.log('Supabase session update successful', data);
+      }
+    } catch (err) {
+      console.error('Unexpected error updating session:', err);
     }
   },
 

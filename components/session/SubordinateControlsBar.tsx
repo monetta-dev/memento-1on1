@@ -14,6 +14,7 @@ interface SubordinateControlsBarProps {
   setMicOn: (micOn: boolean) => void;
   isMindMapMode: boolean;
   setIsMindMapMode: (isMindMapMode: boolean) => void;
+  onLeaveSession?: () => void;
 }
 
 const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
@@ -21,6 +22,7 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
   setMicOn,
   isMindMapMode,
   setIsMindMapMode,
+  onLeaveSession,
 }) => {
   return (
     <Flex 
@@ -32,6 +34,7 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
         background: '#1f1f1f',
         padding: '0 24px'
       }}
+      data-testid="subordinate-controls-bar"
     >
       <Button
         shape="circle"
@@ -39,6 +42,7 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
         type={micOn ? 'default' : 'primary'}
         danger={!micOn}
         onClick={() => setMicOn(!micOn)}
+        data-testid="mic-toggle-button"
       />
 
       <Button
@@ -46,9 +50,22 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
         shape="round"
         icon={isMindMapMode ? <VideoCameraOutlined /> : <PartitionOutlined />}
         onClick={() => setIsMindMapMode(!isMindMapMode)}
+        data-testid="mindmap-toggle-button"
       >
         {isMindMapMode ? 'Switch to Video' : 'Switch to MindMap'}
       </Button>
+
+      {onLeaveSession && (
+        <Button
+          type="primary"
+          shape="round"
+          danger
+          onClick={onLeaveSession}
+          data-testid="leave-session-button"
+        >
+          Leave Session
+        </Button>
+      )}
     </Flex>
   );
 };

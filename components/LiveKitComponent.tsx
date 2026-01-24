@@ -8,6 +8,7 @@ import {
   RoomAudioRenderer,
   ControlBar,
   useTracks,
+  useParticipants,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { Track } from 'livekit-client';
@@ -27,10 +28,12 @@ export default function LiveKitComponent({ roomName, username, mode = 'web', onR
   useEffect(() => {
     (async () => {
       try {
+        console.log('Fetching LiveKit token for room:', roomName, 'username:', username);
         const resp = await fetch(
           `/api/livekit/token?room=${roomName}&username=${encodeURIComponent(username)}`
         );
         const data = await resp.json();
+        console.log('LiveKit token response:', { hasToken: !!data.token, hasWarning: !!data.warning });
 
         if (data.token === 'mock-token-for-demo-purposes' || data.warning) {
           console.warn(data.warning);
@@ -73,23 +76,36 @@ export default function LiveKitComponent({ roomName, username, mode = 'web', onR
     );
   }
 
+  const handleConnected = () => {
+    console.log('LiveKit room connected');
+  };
+
+  const handleDisconnected = () => {
+    console.log('LiveKit room disconnected');
+  };
+
   return (
     <LiveKitRoom
-      video={mode === 'web'}
+      video={mode === 'web' || mode === 'face-to-face'}
       audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
       data-lk-theme="default"
       style={{ height: '100%' }}
+      onConnected={handleConnected}
+      onDisconnected={handleDisconnected}
     >
-      <MyVideoConference onRemoteAudioTrack={onRemoteAudioTrack} />
+      <MyVideoConference username={username} onRemoteAudioTrack={onRemoteAudioTrack} />
       <RoomAudioRenderer />
       <ControlBar />
     </LiveKitRoom>
   );
 }
 
-function MyVideoConference({ onRemoteAudioTrack }: { onRemoteAudioTrack?: (stream: MediaStream | null) => void }) {
+function MyVideoConference({ username, onRemoteAudioTrack }: { 
+  username: string;
+  onRemoteAudioTrack?: (stream: MediaStream | null) => void 
+}) {
   // Use custom layout or default VideoConference component
   // Here we use a standard grid layout for simplicity
   const tracks = useTracks(
@@ -100,6 +116,20 @@ function MyVideoConference({ onRemoteAudioTrack }: { onRemoteAudioTrack?: (strea
     ],
     { onlySubscribed: false },
   );
+  const participants = useParticipants();
+
+  console.log('MyVideoConference participants:', participants.map(p => ({
+    identity: p.identity,
+    sid: p.sid,
+    trackPublicationCount: p.trackPublications.size,
+    // tracks: [...p.trackPublications.values()].map(t => ({ kind: t.kind, trackSid: t.trackSid }))
+  })));
+  console.log('MyVideoConference tracks:', tracks.map(t => ({
+    source: t.source,
+    participant: t.participant?.identity,
+    subscribed: t.publication?.isSubscribed,
+    trackSid: t.publication?.trackSid
+  })));
 
   const prevTrackSids = React.useRef<string>('');
 
@@ -108,7 +138,7 @@ function MyVideoConference({ onRemoteAudioTrack }: { onRemoteAudioTrack?: (strea
     if (!onRemoteAudioTrack) return;
 
     const remoteAudioTracks = tracks.filter(
-      track => track.source === Track.Source.Microphone && track.participant?.identity !== 'user'
+      track => track.source === Track.Source.Microphone && track.participant?.identity !== username
     );
 
     // Create a unique signature for the current tracks to avoid unnecessary updates
@@ -143,7 +173,7 @@ function MyVideoConference({ onRemoteAudioTrack }: { onRemoteAudioTrack?: (strea
     } else {
       onRemoteAudioTrack(null);
     }
-  }, [tracks, onRemoteAudioTrack]);
+  }, [tracks, onRemoteAudioTrack, username]);
 
   return (
     <GridLayout tracks={tracks} style={{ height: 'calc(100% - var(--lk-control-bar-height))' }}>
