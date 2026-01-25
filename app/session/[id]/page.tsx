@@ -6,11 +6,12 @@ import { BulbOutlined } from '@ant-design/icons';
 import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useRouter, useParams } from 'next/navigation';
-import { useStore } from '@/store/useStore';
+import { useStore, type AgendaItem, type Note } from '@/store/useStore';
 
 import SessionHeader from '@/components/session/SessionHeader';
 import VideoPanel from '@/components/session/VideoPanel';
 import MindMapPanel from '@/components/session/MindMapPanel';
+import FaceToFaceDashboard from '@/components/session/FaceToFaceDashboard';
 import ControlsBar from '@/components/session/ControlsBar';
 import AdvicePanel from '@/components/session/AdvicePanel';
 import TranscriptPanel from '@/components/session/TranscriptPanel';
@@ -44,12 +45,22 @@ export default function SessionPage() {
   const [messages, setMessages] = useState<{ speaker: string, text: string, time: string }[]>([]);
   const [realTimeAdvice, setRealTimeAdvice] = useState<string>('会話を待っています...');
   const [isMindMapMode, setIsMindMapMode] = useState(false);
+  // Face-to-Face mode state
+  const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [sessionStartTime] = useState<Date>(new Date());
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [timerPaused, setTimerPaused] = useState<boolean>(false);
+  const sessionDuration = 3600; // 60 minutes in seconds
+  
   const [micOn, setMicOn] = useState(true); // Re-introduce mic control for transcription handling
   const isAnalyzingRef = useRef<boolean>(false);
   const lastAdviceTimeRef = useRef<number>(0);
   const [remoteAudioStream, setRemoteAudioStream] = useState<MediaStream | null>(null);
   const prevRemoteStreamRef = useRef<MediaStream | null>(null);
   const logEndRef = useRef<HTMLDivElement | null>(null);
+  const agendaSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
   const handleTranscript = useCallback((text: string, speaker: 'manager' | 'subordinate') => {
@@ -70,6 +81,36 @@ export default function SessionPage() {
     prevRemoteStreamRef.current = stream;
     setRemoteAudioStream(stream);
   }, []);
+
+  // Face-to-Face mode handlers
+  const handleAddNote = useCallback((content: string) => {
+    const newNote: Note = {
+      id: Date.now().toString(),
+      content,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      source: 'manual'
+    };
+    setNotes(prev => [...prev, newNote]);
+  }, []);
+
+  const handleUpdateAgenda = useCallback((items: AgendaItem[]) => {
+    setAgendaItems(items);
+  }, []);
+
+  const handleToggleTimer = useCallback((paused: boolean) => {
+    setTimerPaused(paused);
+  }, []);
+
+  // Timer effect for face-to-face mode
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (!timerPaused) {
+      interval = setInterval(() => {
+        setElapsedTime(Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timerPaused, sessionStartTime]);
 
   // Track if we've fetched for this session ID
   const hasFetchedRef = useRef<string | null>(null);
@@ -246,6 +287,56 @@ export default function SessionPage() {
     };
   }, [nodes, edges, sessionData, updateSession]);
 
+  // Auto-save agenda items
+  useEffect(() => {
+    if (agendaSaveTimeoutRef.current) {
+      clearTimeout(agendaSaveTimeoutRef.current);
+    }
+
+    agendaSaveTimeoutRef.current = setTimeout(async () => {
+      if (!sessionData || agendaItems.length === 0) return;
+      
+      try {
+        await updateSession(sessionData.id, {
+          agendaItems
+        });
+      } catch (error) {
+        console.error('Failed to auto-save agenda items:', error);
+      }
+    }, 3000); // 3 second debounce
+
+    return () => {
+      if (agendaSaveTimeoutRef.current) {
+        clearTimeout(agendaSaveTimeoutRef.current);
+      }
+    };
+  }, [agendaItems, sessionData, updateSession]);
+
+  // Auto-save notes
+  useEffect(() => {
+    if (notesSaveTimeoutRef.current) {
+      clearTimeout(notesSaveTimeoutRef.current);
+    }
+
+    notesSaveTimeoutRef.current = setTimeout(async () => {
+      if (!sessionData || notes.length === 0) return;
+      
+      try {
+        await updateSession(sessionData.id, {
+          notes
+        });
+      } catch (error) {
+        console.error('Failed to auto-save notes:', error);
+      }
+    }, 3000); // 3 second debounce
+
+    return () => {
+      if (notesSaveTimeoutRef.current) {
+        clearTimeout(notesSaveTimeoutRef.current);
+      }
+    };
+  }, [notes, sessionData, updateSession]);
+
   const handleEndSession = async () => {
     setIsEnding(true);
     try {
@@ -304,7 +395,9 @@ export default function SessionPage() {
             nodes: nodes,
             edges: edges,
             actionItems: actionItems
-          }
+          },
+          agendaItems,
+          notes
         });
       } else {
         console.error('Current session data not found for id:', params.id);
@@ -362,47 +455,75 @@ export default function SessionPage() {
           display: 'flex', 
           flexDirection: 'column' 
         }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            {/* VideoPanel is always rendered to maintain LiveKit connection */}
-            <div style={{ 
-              width: '100%', 
-              height: '100%', 
-              position: 'relative',
-              display: isMindMapMode ? 'none' : 'block' // Hide when in mindmap mode
-            }}>
-              <VideoPanel
-                sessionData={sessionData}
-                micOn={micOn}
-                remoteAudioStream={remoteAudioStream}
-                onTranscript={handleTranscript}
-                onRemoteAudioTrack={handleRemoteAudioTrack}
-                username="Manager"
-              />
-            </div>
-            
-            {/* MindMapPanel overlays when in mindmap mode */}
-            {isMindMapMode && (
-              <div style={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                width: '100%', 
-                height: '100%', 
-                zIndex: 10,
-                background: '#fff'
-              }}>
-                <MindMapPanel
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  onNodeDoubleClick={onNodeDoubleClick}
-                  handleAddNode={handleAddNode}
-                />
-              </div>
-            )}
-          </div>
+           <div style={{ flex: 1, position: 'relative' }}>
+             {/* VideoPanel is always rendered to maintain LiveKit connection and transcription */}
+             <div style={{ 
+               width: '100%', 
+               height: '100%', 
+               position: 'relative',
+               display: (isMindMapMode || sessionData.mode === 'face-to-face') ? 'none' : 'block'
+             }}>
+               <VideoPanel
+                 sessionData={sessionData}
+                 micOn={micOn}
+                 remoteAudioStream={remoteAudioStream}
+                 onTranscript={handleTranscript}
+                 onRemoteAudioTrack={handleRemoteAudioTrack}
+                 username="Manager"
+               />
+             </div>
+             
+             {/* MindMapPanel overlays when in mindmap mode */}
+             {isMindMapMode && (
+               <div style={{ 
+                 position: 'absolute', 
+                 top: 0, 
+                 left: 0, 
+                 width: '100%', 
+                 height: '100%', 
+                 zIndex: 10,
+                 background: '#fff'
+               }}>
+                 <MindMapPanel
+                   nodes={nodes}
+                   edges={edges}
+                   onNodesChange={onNodesChange}
+                   onEdgesChange={onEdgesChange}
+                   onConnect={onConnect}
+                   onNodeDoubleClick={onNodeDoubleClick}
+                   handleAddNode={handleAddNode}
+                 />
+               </div>
+             )}
+
+             {/* FaceToFaceDashboard for in-person sessions */}
+             {!isMindMapMode && sessionData.mode === 'face-to-face' && (
+               <div style={{ 
+                 position: 'absolute', 
+                 top: 0, 
+                 left: 0, 
+                 width: '100%', 
+                 height: '100%', 
+                 zIndex: 5,
+                 background: '#fff',
+                 padding: '24px',
+                 overflow: 'auto'
+               }}>
+                 <FaceToFaceDashboard
+                   subordinate={subordinate}
+                   sessionData={sessionData}
+                   agendaItems={agendaItems}
+                   notes={notes}
+                   elapsedTime={elapsedTime}
+                   sessionDuration={sessionDuration}
+                   timerPaused={timerPaused}
+                   onAddNote={handleAddNote}
+                   onUpdateAgenda={handleUpdateAgenda}
+                   onToggleTimer={handleToggleTimer}
+                 />
+               </div>
+             )}
+           </div>
 
           <ControlsBar
             micOn={micOn}

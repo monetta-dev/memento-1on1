@@ -15,6 +15,19 @@ export interface MindMapData {
   actionItems?: string[];
 }
 
+export interface AgendaItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface Note {
+  id: string;
+  content: string;
+  timestamp: string;
+  source?: 'manual' | 'ai' | 'transcript';
+}
+
 export interface Subordinate {
   id: string;
   name: string;
@@ -34,6 +47,8 @@ export interface Session {
   summary?: string;
   transcript?: TranscriptItem[];
   mindMapData?: MindMapData;
+  agendaItems?: AgendaItem[];
+  notes?: Note[];
   status: 'scheduled' | 'completed' | 'live';
   created_at?: string;
 }
@@ -99,7 +114,9 @@ export const useStore = create<AppState>((set, get) => ({
         summary: item.summary,
         status: item.status,
         transcript: item.transcript,
-        mindMapData: item.mind_map_data
+        mindMapData: item.mind_map_data,
+        agendaItems: item.agenda_items,
+        notes: item.notes
       }));
       set({ sessions: mappedData, isLoading: false });
     }
@@ -210,6 +227,8 @@ export const useStore = create<AppState>((set, get) => ({
       }
       dbUpdates.mind_map_data = updates.mindMapData;
     }
+    if (updates.agendaItems) dbUpdates.agenda_items = updates.agendaItems;
+    if (updates.notes) dbUpdates.notes = updates.notes;
 
     console.log('Updating Supabase session with:', dbUpdates);
     try {

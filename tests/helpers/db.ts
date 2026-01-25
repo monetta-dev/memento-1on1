@@ -28,6 +28,8 @@ export interface Session {
   status?: 'scheduled' | 'live' | 'completed';
   transcript?: unknown[]; // JSONB array
   mind_map_data?: Record<string, unknown>; // JSONB object
+  agenda_items?: unknown[]; // JSONB array of agenda items
+  notes?: unknown[]; // JSONB array of notes
 }
 
 /**

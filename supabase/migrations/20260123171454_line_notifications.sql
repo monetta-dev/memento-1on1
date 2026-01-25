@@ -1,6 +1,6 @@
 -- LINE通知設定テーブル
 CREATE TABLE IF NOT EXISTS public.line_notifications (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     line_user_id TEXT UNIQUE, -- LINEユーザーID（OAuth連携後）
     line_access_token TEXT, -- 暗号化されたアクセストークン
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.line_notifications (
 
 -- 通知ログテーブル
 CREATE TABLE IF NOT EXISTS public.notification_logs (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     session_id UUID REFERENCES public.sessions(id) ON DELETE SET NULL,
     notification_type TEXT NOT NULL, -- 'reminder', 'summary', 'follow_up', 'error'
