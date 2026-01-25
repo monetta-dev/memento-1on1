@@ -65,7 +65,7 @@ export default function JoinSessionPage() {
     setRemoteAudioStream(stream);
   }, []);
 
-  const handleTranscript = useCallback((_text: string, _speaker: 'manager' | 'subordinate') => {
+  const handleTranscript = useCallback((_: string, __: 'manager' | 'subordinate') => { // eslint-disable-line @typescript-eslint/no-unused-vars
     // Subordinate view doesn't need to handle transcripts
   }, []);
 
@@ -105,7 +105,12 @@ export default function JoinSessionPage() {
         (payload) => {
           // Handle mindmap updates
           const newMindMapData = payload.new.mind_map_data;
-          if (newMindMapData && newMindMapData.nodes && newMindMapData.edges) {
+          if (newMindMapData && newMindMapData.nodes) {
+            console.log('📡 Received mindmap update:', {
+              nodesCount: newMindMapData.nodes.length,
+              edgesCount: newMindMapData.edges?.length || 0,
+              newMindMapData
+            });
             setNodes(newMindMapData.nodes);
             setEdges(newMindMapData.edges || []);
           }

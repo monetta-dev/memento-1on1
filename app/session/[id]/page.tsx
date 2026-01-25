@@ -184,7 +184,7 @@ export default function SessionPage() {
     setNodes((nds) => [...nds, newNode]);
   }, [nodes.length, setNodes]);
 
-  const onNodeDoubleClick = useCallback((_event: React.MouseEvent, _node: CustomNode) => {
+  const onNodeDoubleClick = useCallback((_: React.MouseEvent, __: CustomNode) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     // Could implement node editing on double click
   }, []);
 

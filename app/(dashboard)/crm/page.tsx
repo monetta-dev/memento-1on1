@@ -101,7 +101,7 @@ export default function CRMPage() {
         </Button>
       </div>
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Table dataSource={subordinates} columns={columns} rowKey="id" />
       </Card>
 

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@/lib/supabase';
@@ -12,10 +13,10 @@ const { TextArea } = Input;
 export default function GoogleCalendarTestPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [sessionInfo, setSessionInfo] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [testResults, setTestResults] = useState<Record<string, any>>({}); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [calendarEvents, setCalendarEvents] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [testResults, setTestResults] = useState<Record<string, any>>({});
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   
   const [eventForm, setEventForm] = useState({
     summary: '1on1セッション: テスト',
@@ -81,13 +82,13 @@ export default function GoogleCalendarTestPage() {
           const events = await listGoogleCalendarEvents('primary', undefined, undefined, 5);
           console.log('📅 カレンダーイベント取得結果:', events);
           
-          if (events.items) {
-            setCalendarEvents(events.items);
+          if ((events as any).items) {
+            setCalendarEvents((events as any).items);
             setTestResults(prev => ({
               ...prev,
               calendarListCheck: { 
                 success: true, 
-                data: { eventCount: events.items.length } 
+                data: { eventCount: (events as any).items.length } 
               }
             }));
           } else {
@@ -161,11 +162,11 @@ export default function GoogleCalendarTestPage() {
         ...prev,
         createEvent: { 
           success: true, 
-          data: { 
-            eventId: result.id,
-            htmlLink: result.htmlLink,
-            summary: result.summary
-          }
+            data: { 
+              eventId: (result as any).id,
+              htmlLink: (result as any).htmlLink,
+              summary: (result as any).summary
+            }
         }
       }));
       
@@ -173,11 +174,11 @@ export default function GoogleCalendarTestPage() {
       
       // イベントリストを更新
       const events = await listGoogleCalendarEvents('primary', undefined, undefined, 5);
-      if (events.items) {
-        setCalendarEvents(events.items);
+      if ((events as any).items) {
+        setCalendarEvents((events as any).items);
       }
       
-      alert(`✅ カレンダーイベントを作成しました！\n${result.htmlLink}`);
+      alert(`✅ カレンダーイベントを作成しました！\n${(result as any).htmlLink}`);
       
     } catch (error: unknown) {
       console.error('❌ イベント作成エラー:', error);
