@@ -9,12 +9,23 @@ interface TranscriptionHandlerProps {
   remoteAudioStream?: MediaStream | null;
 }
 
+// Type for Deepgram word objects in transcript responses
+interface DeepgramWord {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+  speaker?: number;
+}
+
 export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudioStream }: TranscriptionHandlerProps) {
   const [_connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const connectionRef = useRef<LiveClient | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const remoteMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const remoteAudioStreamRef = useRef<MediaStream | null>(null);
+  // Maintain mapping between Deepgram speaker numbers (0,1,...) and roles
+  const speakerMappingRef = useRef<Map<number, 'manager' | 'subordinate'>>(new Map());
 
   // Keep ref updated with latest stream
   useEffect(() => {
@@ -119,11 +130,72 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
           if (!isActive) return;
           const transcript = data.channel.alternatives[0]?.transcript;
           if (transcript && transcript.trim().length > 0) {
-            // Simple logic: assume local mic is Manager. 
-            // For real speaker separation involving remote audio, we need to mix remote stream.
-            // For this MVP, we treat local mic input as 'manager'.
-            // If we pipe LiveKit audio here, we could use diarization results.
-            onTranscript(transcript, 'manager');
+            // Extract speaker information from Deepgram diarization results
+            const words = data.channel.alternatives[0]?.words || [];
+            
+            // Debug logging to understand data structure
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Deepgram transcript received:', {
+                transcript,
+                wordCount: words.length,
+                wordsWithSpeakers: words.filter((w: DeepgramWord) => w.speaker !== undefined).length,
+                speakers: [...new Set(words.filter((w: DeepgramWord) => w.speaker !== undefined).map((w: DeepgramWord) => w.speaker))],
+                sampleWords: words.slice(0, 3).map((w: DeepgramWord) => ({
+                  word: w.word,
+                  speaker: w.speaker,
+                  confidence: w.confidence
+                }))
+              });
+            }
+
+            // Filter words with speaker information and sufficient confidence
+            const validWords = words.filter((word: DeepgramWord) => 
+              word.speaker !== undefined && 
+              word.confidence > 0.5 && 
+              word.word.trim().length > 0
+            );
+
+            let speakerRole: 'manager' | 'subordinate' = 'manager'; // Default fallback
+
+            if (validWords.length > 0) {
+              // Count occurrences of each speaker in this transcript segment
+              const speakerCounts = validWords.reduce((acc: Record<number, number>, word: DeepgramWord) => {
+                const speakerNum = word.speaker!;
+                acc[speakerNum] = (acc[speakerNum] || 0) + 1;
+                return acc;
+              }, {} as Record<number, number>);
+
+              // Determine dominant speaker in this segment
+              const speakers = Object.keys(speakerCounts).map(Number);
+              if (speakers.length > 0) {
+                const dominantSpeaker = speakers.reduce((a, b) => 
+                  speakerCounts[a] > speakerCounts[b] ? a : b
+                );
+
+                // Assign role to new speakers: first detected = manager, second = subordinate
+                if (!speakerMappingRef.current.has(dominantSpeaker)) {
+                  const nextRole = speakerMappingRef.current.size === 0 ? 'manager' : 'subordinate';
+                  speakerMappingRef.current.set(dominantSpeaker, nextRole);
+                  
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log(`New speaker ${dominantSpeaker} assigned to role: ${nextRole}`);
+                  }
+                }
+
+                speakerRole = speakerMappingRef.current.get(dominantSpeaker) || 'manager';
+                
+                if (process.env.NODE_ENV === 'development') {
+                  console.log(`Transcript speaker: ${dominantSpeaker} → ${speakerRole}`);
+                }
+              }
+            } else {
+              // No speaker information available, fallback to manager
+              if (process.env.NODE_ENV === 'development') {
+                console.log('No speaker information available, using default: manager');
+              }
+            }
+
+            onTranscript(transcript, speakerRole);
           }
         });
 
