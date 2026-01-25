@@ -99,14 +99,33 @@ export default function SessionSummaryPage() {
     }
   }, [session]);
 
-  // 実際のデータを表示するコンポーネント（sessionがnullの場合の安全な処理を含む）
+   // 実際のデータを表示するコンポーネント（sessionがnullの場合の安全な処理を含む）
   const renderAISummary = useMemo(() => {
-    if (!session || !session.summary) {
+    if (!session) {
       return (
         <Card title="AI Executive Summary" style={{ marginBottom: 24 }}>
-          <Text type="secondary">AIサマリーはまだ生成されていません。</Text>
+          <Text type="secondary">セッションデータを読み込み中...</Text>
+        </Card>
+      );
+    }
+    
+    if (!session.summary) {
+      let message = 'AIサマリーはまだ生成されていません。';
+      let description = 'セッション終了時にAIが自動的に会話を分析し、サマリーを生成します。';
+      
+      if (session.status === 'scheduled') {
+        message = 'セッションはまだ開始されていません。';
+        description = 'セッション開始後にAIサマリーが生成されます。';
+      } else if (session.status === 'live') {
+        message = 'セッション進行中';
+        description = 'リアルタイムでAIが会話を分析しています。サマリーはセッション終了後に完成します。';
+      }
+      
+      return (
+        <Card title="AI Executive Summary" style={{ marginBottom: 24 }}>
+          <Text type="secondary">{message}</Text>
           <div style={{ marginTop: 16 }}>
-            <Text>セッション終了時にAIが自動的に会話を分析し、サマリーを生成します。</Text>
+            <Text>{description}</Text>
           </div>
         </Card>
       );
@@ -133,12 +152,31 @@ export default function SessionSummaryPage() {
   }, [session]);
 
   const renderTranscript = useMemo(() => {
-    if (!session || !session.transcript || session.transcript.length === 0) {
+    if (!session) {
       return (
         <Card title="Full Transcript" style={{ marginBottom: 24 }}>
-          <Text type="secondary">トランスクリプトデータはありません。</Text>
+          <Text type="secondary">セッションデータを読み込み中...</Text>
+        </Card>
+      );
+    }
+    
+    if (!session.transcript || session.transcript.length === 0) {
+      let message = 'トランスクリプトデータはありません。';
+      let description = '対面セッションまたは音声認識が有効なセッションでは、会話の文字起こしがここに表示されます。';
+      
+      if (session.status === 'scheduled') {
+        message = 'セッションはまだ開始されていません。';
+        description = 'セッション開始後にトランスクリプトが生成されます。';
+      } else if (session.status === 'live') {
+        message = 'セッション進行中';
+        description = 'リアルタイムでトランスクリプトが生成されています。会話が始まるとここに表示されます。';
+      }
+      
+      return (
+        <Card title="Full Transcript" style={{ marginBottom: 24 }}>
+          <Text type="secondary">{message}</Text>
           <div style={{ marginTop: 16 }}>
-            <Text>対面セッションまたは音声認識が有効なセッションでは、会話の文字起こしがここに表示されます。</Text>
+            <Text>{description}</Text>
           </div>
         </Card>
       );
@@ -235,27 +273,73 @@ export default function SessionSummaryPage() {
         </Button>
       </div>
 
-      {/* 成功メッセージ - テスト互換性のために英語と日本語の両方を表示 */}
-      <Card 
-        style={{ 
-          marginBottom: 24, 
-          backgroundColor: '#f6ffed', 
-          borderColor: '#b7eb8f',
-          borderWidth: 2
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ marginRight: 16, fontSize: 24, color: '#52c41a' }}>✓</div>
-          <div>
-            <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
-              Session Completed Successfully
-            </Title>
-            <Text style={{ display: 'block', marginTop: 8 }}>
-              セッションが正常に完了しました。AIが会話を分析し、サマリーを生成しました。アクションアイテムを確認してください。
-            </Text>
+      {/* セッションステータスに応じたメッセージ */}
+      {session.status === 'completed' && (
+        <Card 
+          style={{ 
+            marginBottom: 24, 
+            backgroundColor: '#f6ffed', 
+            borderColor: '#b7eb8f',
+            borderWidth: 2
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ marginRight: 16, fontSize: 24, color: '#52c41a' }}>✓</div>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
+                Session Completed Successfully
+              </Title>
+              <Text style={{ display: 'block', marginTop: 8 }}>
+                セッションが正常に完了しました。AIが会話を分析し、サマリーを生成しました。アクションアイテムを確認してください。
+              </Text>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
+      {session.status === 'live' && (
+        <Card 
+          style={{ 
+            marginBottom: 24, 
+            backgroundColor: '#e6f7ff', 
+            borderColor: '#91d5ff',
+            borderWidth: 2
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ marginRight: 16, fontSize: 24, color: '#1890ff' }}>⏳</div>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                セッション進行中
+              </Title>
+              <Text style={{ display: 'block', marginTop: 8 }}>
+                このセッションは現在進行中です。リアルタイムの要約とトランスクリプトが表示されます。
+              </Text>
+            </div>
+          </div>
+        </Card>
+      )}
+      {session.status === 'scheduled' && (
+        <Card 
+          style={{ 
+            marginBottom: 24, 
+            backgroundColor: '#fff7e6', 
+            borderColor: '#ffd591',
+            borderWidth: 2
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ marginRight: 16, fontSize: 24, color: '#fa8c16' }}>📅</div>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#fa8c16' }}>
+                セッション予定
+              </Title>
+              <Text style={{ display: 'block', marginTop: 8 }}>
+                このセッションはまだ開始されていません。予定日時: {dayjs(session.date).format('YYYY年MM月DD日 HH:mm')}
+              </Text>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* セッション詳細 */}
       {renderSessionDetails}

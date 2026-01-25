@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Card, Button, Table, Tag, Modal, Form, Select, Input, Radio, DatePicker } from 'antd';
 import { PlusOutlined, VideoCameraOutlined, UserOutlined } from '@ant-design/icons';
-import { useStore } from '@/store/useStore';
+import { useStore, Session } from '@/store/useStore';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 
@@ -48,18 +48,26 @@ export default function Dashboard() {
       title: 'Subordinate',
       dataIndex: 'subordinateId',
       key: 'subordinateId',
+      filters: subordinates.map(s => ({ text: s.name, value: s.id })),
+      onFilter: (value: any, record: Session) => record.subordinateId === value, // eslint-disable-line @typescript-eslint/no-explicit-any
       render: (id: string) => subordinates.find((s) => s.id === id)?.name || 'Unknown',
     },
     {
       title: 'Date',
       dataIndex: 'date',
       key: 'date',
+      sorter: (a: Session, b: Session) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       render: (text: string) => new Date(text).toLocaleDateString(),
     },
     {
       title: 'Mode',
       dataIndex: 'mode',
       key: 'mode',
+      filters: [
+        { text: 'Web', value: 'web' },
+        { text: 'Face-to-Face', value: 'face-to-face' },
+      ],
+      onFilter: (value: any, record: Session) => record.mode === value, // eslint-disable-line @typescript-eslint/no-explicit-any
       render: (mode: string) => (
         mode === 'web' ? <Tag icon={<VideoCameraOutlined />} color="blue">Web</Tag> : <Tag icon={<UserOutlined />} color="green">Face-to-Face</Tag>
       ),
@@ -68,11 +76,39 @@ export default function Dashboard() {
       title: 'Theme',
       dataIndex: 'theme',
       key: 'theme',
+      sorter: (a: Session, b: Session) => a.theme.localeCompare(b.theme),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm }: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="Search theme"
+            value={selectedKeys[0]}
+            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={() => confirm()}
+            style={{ width: 188, marginBottom: 8, display: 'block' }}
+          />
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+        </div>
+      ),
+      onFilter: (value: any, record: Session) => record.theme.toLowerCase().includes(value.toLowerCase()), // eslint-disable-line @typescript-eslint/no-explicit-any
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      sorter: (a: Session, b: Session) => a.status.localeCompare(b.status),
+      filters: [
+        { text: 'Scheduled', value: 'scheduled' },
+        { text: 'Live', value: 'live' },
+        { text: 'Completed', value: 'completed' },
+      ],
+      onFilter: (value: any, record: Session) => record.status === value, // eslint-disable-line @typescript-eslint/no-explicit-any
       render: (status: string) => (
         <Tag color={status === 'completed' ? 'default' : 'processing'}>{status.toUpperCase()}</Tag>
       ),
@@ -88,8 +124,22 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      <Card title="Recent Sessions" styles={{ body: { padding: 0 } }}>
-        <Table dataSource={sessions} columns={columns} rowKey="id" pagination={{ pageSize: 5 }} />
+       <Card title="Recent Sessions" styles={{ body: { padding: 0 } }}>
+        <Table 
+          dataSource={sessions} 
+          columns={columns} 
+          rowKey="id" 
+          pagination={{ pageSize: 5 }}
+          onRow={(record) => ({
+            onClick: () => router.push(`/session/${record.id}/summary`),
+            onKeyDown: (e) => e.key === 'Enter' && router.push(`/session/${record.id}/summary`),
+            role: 'button',
+            tabIndex: 0,
+            'aria-label': `View details for session with theme: ${record.theme}`,
+            style: { cursor: 'pointer' }
+          })}
+          rowClassName={() => 'session-table-row'}
+        />
       </Card>
 
       <Modal
