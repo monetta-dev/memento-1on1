@@ -367,4 +367,194 @@ describe('TranscriptionHandler', () => {
     expect(mockLiveClient.finish).toHaveBeenCalled();
     // MediaRecorder.stop should be called via cleanup
   });
+
+  it('should extract speaker information from diarization results and map to roles', async () => {
+    let transcriptCallback: ((data: unknown) => void) | null = null;
+    mockLiveClient.on.mockImplementation((event, callback) => {
+      if (event === 'transcript') {
+        transcriptCallback = callback;
+      }
+      if (event === 'open') {
+        setTimeout(() => callback(), 0);
+      }
+      return mockLiveClient;
+    });
+    
+    const mockOnTranscript = vi.fn();
+    render(<TranscriptionHandler {...defaultProps} onTranscript={mockOnTranscript} />);
+    
+    // Wait for open event
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    // First transcript: speaker 0 (should be mapped to 'manager')
+    const transcriptData1 = {
+      channel: {
+        alternatives: [{
+          transcript: 'Hello from first speaker',
+          words: [
+            { word: 'Hello', speaker: 0, confidence: 0.9 },
+            { word: 'from', speaker: 0, confidence: 0.8 },
+            { word: 'first', speaker: 0, confidence: 0.85 },
+            { word: 'speaker', speaker: 0, confidence: 0.88 }
+          ]
+        }],
+      },
+    };
+    
+    await act(async () => {
+      if (transcriptCallback) transcriptCallback(transcriptData1);
+      await Promise.resolve();
+    });
+    
+    expect(mockOnTranscript).toHaveBeenCalledWith('Hello from first speaker', 'manager');
+    
+    // Reset mock to track second call
+    mockOnTranscript.mockClear();
+    
+    // Second transcript: speaker 1 (should be mapped to 'subordinate')
+    const transcriptData2 = {
+      channel: {
+        alternatives: [{
+          transcript: 'Response from second speaker',
+          words: [
+            { word: 'Response', speaker: 1, confidence: 0.87 },
+            { word: 'from', speaker: 1, confidence: 0.82 },
+            { word: 'second', speaker: 1, confidence: 0.85 },
+            { word: 'speaker', speaker: 1, confidence: 0.89 }
+          ]
+        }],
+      },
+    };
+    
+    await act(async () => {
+      if (transcriptCallback) transcriptCallback(transcriptData2);
+      await Promise.resolve();
+    });
+    
+    expect(mockOnTranscript).toHaveBeenCalledWith('Response from second speaker', 'subordinate');
+  });
+
+  it('should use dominant speaker when multiple speakers in same transcript segment', async () => {
+    let transcriptCallback: ((data: unknown) => void) | null = null;
+    mockLiveClient.on.mockImplementation((event, callback) => {
+      if (event === 'transcript') {
+        transcriptCallback = callback;
+      }
+      if (event === 'open') {
+        setTimeout(() => callback(), 0);
+      }
+      return mockLiveClient;
+    });
+    
+    const mockOnTranscript = vi.fn();
+    render(<TranscriptionHandler {...defaultProps} onTranscript={mockOnTranscript} />);
+    
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    // Transcript with mixed speakers, speaker 0 is dominant (3 words vs 1 word)
+    const transcriptData = {
+      channel: {
+        alternatives: [{
+          transcript: 'Mixed speaker conversation here',
+          words: [
+            { word: 'Mixed', speaker: 0, confidence: 0.9 },
+            { word: 'speaker', speaker: 1, confidence: 0.6 }, // Lower confidence
+            { word: 'conversation', speaker: 0, confidence: 0.85 },
+            { word: 'here', speaker: 0, confidence: 0.88 }
+          ]
+        }],
+      },
+    };
+    
+    await act(async () => {
+      if (transcriptCallback) transcriptCallback(transcriptData);
+      await Promise.resolve();
+    });
+    
+    // Should use speaker 0 (dominant) which maps to 'manager'
+    expect(mockOnTranscript).toHaveBeenCalledWith('Mixed speaker conversation here', 'manager');
+  });
+
+  it('should fallback to manager when no speaker information available', async () => {
+    let transcriptCallback: ((data: unknown) => void) | null = null;
+    mockLiveClient.on.mockImplementation((event, callback) => {
+      if (event === 'transcript') {
+        transcriptCallback = callback;
+      }
+      if (event === 'open') {
+        setTimeout(() => callback(), 0);
+      }
+      return mockLiveClient;
+    });
+    
+    const mockOnTranscript = vi.fn();
+    render(<TranscriptionHandler {...defaultProps} onTranscript={mockOnTranscript} />);
+    
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    // Transcript without speaker information (no words array or no speaker fields)
+    const transcriptData = {
+      channel: {
+        alternatives: [{
+          transcript: 'No speaker info available',
+          // No words array
+        }],
+      },
+    };
+    
+    await act(async () => {
+      if (transcriptCallback) transcriptCallback(transcriptData);
+      await Promise.resolve();
+    });
+    
+    expect(mockOnTranscript).toHaveBeenCalledWith('No speaker info available', 'manager');
+  });
+
+  it('should filter out low confidence speaker assignments', async () => {
+    let transcriptCallback: ((data: unknown) => void) | null = null;
+    mockLiveClient.on.mockImplementation((event, callback) => {
+      if (event === 'transcript') {
+        transcriptCallback = callback;
+      }
+      if (event === 'open') {
+        setTimeout(() => callback(), 0);
+      }
+      return mockLiveClient;
+    });
+    
+    const mockOnTranscript = vi.fn();
+    render(<TranscriptionHandler {...defaultProps} onTranscript={mockOnTranscript} />);
+    
+    await act(async () => {
+      await Promise.resolve();
+    });
+    
+    // Transcript with low confidence speaker assignments (below 0.5 threshold)
+    const transcriptData = {
+      channel: {
+        alternatives: [{
+          transcript: 'Low confidence speech',
+          words: [
+            { word: 'Low', speaker: 0, confidence: 0.3 }, // Below threshold
+            { word: 'confidence', speaker: 1, confidence: 0.4 }, // Below threshold
+            { word: 'speech', speaker: 0, confidence: 0.6 } // Above threshold
+          ]
+        }],
+      },
+    };
+    
+    await act(async () => {
+      if (transcriptCallback) transcriptCallback(transcriptData);
+      await Promise.resolve();
+    });
+    
+    // Only 'speech' word has confidence > 0.5, so speaker 0 should be used
+    expect(mockOnTranscript).toHaveBeenCalledWith('Low confidence speech', 'manager');
+  });
 });
