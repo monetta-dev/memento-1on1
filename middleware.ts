@@ -37,13 +37,11 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired - skip if SKIP_AUTH is enabled
-  if (process.env.SKIP_AUTH !== 'true') {
-    try {
-      await supabase.auth.getUser();
-    } catch (error) {
-      console.error('❌ supabase.auth.getUser() エラー:', error);
-    }
+  // Refresh session if expired
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.error('❌ supabase.auth.getUser() エラー:', error);
   }
 
   // Define protected routes
@@ -64,14 +62,9 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.includes(request.nextUrl.pathname);
 
   let user, userError;
-  if (process.env.SKIP_AUTH === 'true') {
-    user = { id: 'test-user-id', email: 'test@example.com' };
-    userError = null;
-  } else {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-    userError = result.error;
-  }
+  const result = await supabase.auth.getUser();
+  user = result.data.user;
+  userError = result.error;
   
   if (userError) {
     console.error('Middleware getUser error:', userError.message);

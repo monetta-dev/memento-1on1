@@ -145,16 +145,7 @@ describe('middleware', () => {
     );
   });
 
-  it('should handle SKIP_AUTH environment variable', async () => {
-    process.env.SKIP_AUTH = 'true';
-    
-    const request = new NextRequest('http://localhost:3000/');
-    await middleware(request);
-    
-    // Should allow access without checking Supabase auth
-    expect(mockGetUser).not.toHaveBeenCalled();
-    expect(NextResponse.redirect).not.toHaveBeenCalled();
-  });
+
 
   it('should handle getUser error gracefully', async () => {
     mockGetUser.mockResolvedValueOnce({ 

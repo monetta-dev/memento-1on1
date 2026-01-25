@@ -28,16 +28,17 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
   isEnding,
 }) => {
   return (
-    <Flex 
-      justify="center" 
-      align="center" 
-      gap={24}
-      style={{ 
-        height: 60, 
-        background: '#1f1f1f',
-        padding: '0 24px'
-      }}
-    >
+    <div style={{ position: 'relative', zIndex: 1000 }}>
+      <Flex 
+        justify="center" 
+        align="center" 
+        gap={24}
+        style={{ 
+          height: 60, 
+          background: '#1f1f1f',
+          padding: '0 24px'
+        }}
+      >
       <Button
         shape="circle"
         icon={micOn ? <AudioOutlined /> : <AudioMutedOutlined />}
@@ -55,18 +56,22 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
         {isMindMapMode ? 'Switch to Video' : 'Switch to MindMap'}
       </Button>
 
-      <Button
+       <Button
         type="primary"
         danger
         shape="round"
         icon={<PhoneOutlined />}
-        onClick={handleEndSession}
+        onClick={() => {
+          console.log('ControlsBar: End Session button clicked');
+          handleEndSession();
+        }}
         loading={isEnding}
       >
         End Session
-      </Button>
-    </Flex>
-  );
+       </Button>
+     </Flex>
+   </div>
+ );
 };
 
 export default ControlsBar;

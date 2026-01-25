@@ -21,13 +21,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_SKIP_AUTH === 'true') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUser({ id: 'test-user-id', email: 'test@example.com' } as User);
-      setIsLoading(false);
-      return;
-    }
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state change:', event);
       setUser(session?.user ?? null);

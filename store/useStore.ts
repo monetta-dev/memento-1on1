@@ -240,7 +240,16 @@ export const useStore = create<AppState>((set, get) => ({
         .single();
       
       if (error) {
-        console.error("Failed to sync session update", error);
+        console.error("Failed to sync session update", {
+          errorMessage: error?.message,
+          errorDetails: error?.details,
+          errorHint: error?.hint,
+          errorCode: error?.code,
+          errorFull: error,
+          dbUpdates,
+          id,
+          timestamp: new Date().toISOString()
+        });
         // Revert or show error could be handled here
       } else {
         console.log('Supabase session update successful', data);

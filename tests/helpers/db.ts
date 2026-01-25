@@ -21,6 +21,7 @@ export interface Subordinate {
 export interface Session {
   id?: string;
   subordinate_id: string;
+  user_id?: string | null; // Added for user isolation
   date?: string; // ISO string
   mode: 'web' | 'face-to-face';
   theme?: string;
@@ -82,6 +83,7 @@ export async function createTestSession(
 ): Promise<Session> {
   const defaultSession: Session = {
     subordinate_id: subordinateId,
+    user_id: null, // Set NULL user_id for backward compatibility
     date: new Date().toISOString(),
     mode: 'face-to-face',
     theme: 'テストセッション',
