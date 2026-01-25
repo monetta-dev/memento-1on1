@@ -253,7 +253,7 @@ export default function SessionSummaryPage() {
   // ローディング状態
   if (isLoading || !session) {
     return (
-      <div style={{ padding: 50, textAlign: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', minHeight: '100vh', height: '100dvh', padding: 50, textAlign: 'center' }}>
         <Spin size="large" />
         <div style={{ marginTop: 16 }}>セッションデータを読み込み中...</div>
       </div>

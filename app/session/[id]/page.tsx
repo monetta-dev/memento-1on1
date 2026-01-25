@@ -339,14 +339,14 @@ export default function SessionPage() {
 
   if (!sessionData) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', height: '100dvh' }}>
         <Spin>Loading session data...</Spin>
       </div>
     );
   }
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+    <Layout style={{ minHeight: '100vh', height: '100dvh', overflow: 'auto' }}>
        <SessionHeader 
          subordinate={subordinate} 
          sessionData={sessionData} 
