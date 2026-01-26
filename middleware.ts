@@ -61,10 +61,9 @@ export async function middleware(request: NextRequest) {
   const authRoutes = ['/login', '/signup', '/forgot-password'];
   const isAuthRoute = authRoutes.includes(request.nextUrl.pathname);
 
-  let user, userError;
   const result = await supabase.auth.getUser();
-  user = result.data.user;
-  userError = result.error;
+  const user = result.data.user;
+  const userError = result.error;
   
   if (userError) {
     console.error('Middleware getUser error:', userError.message);

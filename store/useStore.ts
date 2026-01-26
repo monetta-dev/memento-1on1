@@ -65,8 +65,10 @@ interface AppState {
   sessions: Session[];
   isLoading: boolean;
   error: string | null;
+  userId?: string;
 
   // Actions
+  setUserId: (userId: string) => void;
   fetchSubordinates: () => Promise<void>;
   fetchSessions: () => Promise<void>;
   addSubordinate: (sub: Omit<Subordinate, 'id' | 'created_at'>) => Promise<void>;
@@ -81,11 +83,22 @@ export const useStore = create<AppState>((set, get) => ({
   sessions: [],
   isLoading: false,
   error: null,
+  userId: undefined,
+  setUserId: (userId: string) => set({ userId }),
 
   fetchSubordinates: async () => {
     if (!supabase) return;
     set({ isLoading: true });
-    const { data, error } = await supabase.from('subordinates').select('*').order('created_at', { ascending: false });
+    const { userId } = get();
+    let query = supabase.from('subordinates').select('*');
+    
+    // Filter by user_id if userId is set
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
+    
     if (error) {
       set({ error: error.message, isLoading: false });
     } else {
@@ -137,12 +150,20 @@ export const useStore = create<AppState>((set, get) => ({
   addSubordinate: async (sub) => {
     if (!supabase) return;
     set({ isLoading: true });
-    const { data, error } = await supabase.from('subordinates').insert([{
+    const { userId } = get();
+    const insertData: Record<string, unknown> = {
       name: sub.name,
       role: sub.role,
       department: sub.department,
       traits: sub.traits
-    }]).select();
+    };
+    
+    // Set user_id if available
+    if (userId) {
+      insertData.user_id = userId;
+    }
+    
+    const { data, error } = await supabase.from('subordinates').insert([insertData]).select();
 
     if (error) {
       set({ error: error.message, isLoading: false });

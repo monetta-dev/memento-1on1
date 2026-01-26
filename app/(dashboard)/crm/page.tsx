@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { Typography, Card, Button, Table, Modal, Form, Input, Select, Upload, message, Tag, Drawer, Descriptions, Spin } from 'antd';
 import { PlusOutlined, UploadOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { useStore, Subordinate } from '@/store/useStore';
+import { createClientComponentClient } from '@/lib/supabase';
 
 const { Title } = Typography;
 const { Option } = Select;
 
 export default function CRMPage() {
-  const { subordinates, addSubordinate, fetchSubordinates, updateSubordinate } = useStore();
+  const { subordinates, addSubordinate, fetchSubordinates, updateSubordinate, setUserId } = useStore();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedSub, setSelectedSub] = useState<Subordinate | null>(null);
@@ -17,8 +18,24 @@ export default function CRMPage() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    fetchSubordinates();
-  }, [fetchSubordinates]);
+    const checkAuthAndFetch = async () => {
+      const supabase = createClientComponentClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (userId) {
+        setUserId(userId);
+        console.log('CRM: User ID set:', userId);
+      } else {
+        console.warn('CRM: No authenticated user found');
+      }
+      
+      // Fetch subordinates after setting user ID
+      await fetchSubordinates();
+    };
+    
+    checkAuthAndFetch();
+  }, [fetchSubordinates, setUserId]);
 
   const handleAdd = () => {
     form.validateFields().then(async (values) => {

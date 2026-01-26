@@ -13,14 +13,30 @@ const { Option } = Select;
 
 export default function Dashboard() {
   const router = useRouter();
-  const { subordinates, sessions, addSession, fetchSubordinates, fetchSessions } = useStore();
+  const { subordinates, sessions, addSession, fetchSubordinates, fetchSessions, setUserId } = useStore();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
-    fetchSubordinates();
-    fetchSessions();
-  }, [fetchSubordinates, fetchSessions]);
+    const checkAuthAndFetch = async () => {
+      const supabase = createClientComponentClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (userId) {
+        setUserId(userId);
+        console.log('User ID set:', userId);
+      } else {
+        console.warn('No authenticated user found');
+      }
+      
+      // Fetch data after setting user ID
+      await fetchSubordinates();
+      await fetchSessions();
+    };
+    
+    checkAuthAndFetch();
+  }, [fetchSubordinates, fetchSessions, setUserId]);
 
   const handleStart = () => {
     setIsModalVisible(true);

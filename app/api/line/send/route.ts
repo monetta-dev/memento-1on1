@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@/lib/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   let userId: string | undefined;
@@ -195,9 +196,8 @@ function getDefaultMessage(notificationType: string, displayName?: string): stri
 }
 
 // 通知ログ記録
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function logNotification(
-  supabase: any,
+  supabase: SupabaseClient,
   data: {
     userId: string;
     sessionId?: string | null;
