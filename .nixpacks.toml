@@ -1,3 +1,14 @@
+[providers]
+node = true
+deno = false
+python = false
+rust = false
+go = false
+php = false
+java = false
+elixir = false
+dotnet = false
+
 [phases.setup]
 nixPkgs = ["nodejs_22"]
 
