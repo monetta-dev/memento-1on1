@@ -5,7 +5,7 @@ import { createClient } from 'npm:@supabase/supabase-js@^2.91.0';
 import { load } from 'https://deno.land/std@0.224.0/dotenv/mod.ts';
 
 // Load environment variables (for local development)
-const env = await load();
+const env = await load({ allowEmptyValues: true });
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || env['SUPABASE_URL'];
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || env['SUPABASE_SERVICE_ROLE_KEY'];
 const lineMessagingAccessToken = Deno.env.get('LINE_MESSAGING_ACCESS_TOKEN') || env['LINE_MESSAGING_ACCESS_TOKEN'];
