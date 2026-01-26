@@ -15,30 +15,67 @@ test.describe('1on1 Session Flow', () => {
     page.on('pageerror', error => {
       console.log(`[Browser Page Error] ${error.message}`);
     });
+    
+    // Wait for data to load
+    await page.waitForTimeout(2000);
   });
 
   test('User can start a session, see transcript, and end it with summary', async ({ page }) => {
-    // 1. Check Dashboard
+    // 1. First ensure we have at least one subordinate
+    // Go to CRM page to check/add subordinate
+    await page.goto('/crm');
+    await expect(page).toHaveTitle(/Memento 1on1/);
+    
+    // Check if any subordinates exist in the table
+    const subordinateRows = page.locator('.ant-table-row');
+    const rowCount = await subordinateRows.count();
+    
+    if (rowCount === 0) {
+      // Add a subordinate
+      await page.getByRole('button', { name: 'Add Subordinate' }).click();
+      await expect(page.getByText('Add New Subordinate')).toBeVisible();
+      
+      const uniqueName = `テスト部下${Date.now()}`;
+      await page.getByRole('textbox', { name: 'Name' }).fill(uniqueName);
+      
+      // Select department
+      await page.getByLabel('Department').click();
+      await page.waitForSelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+      await page.locator('.ant-select-item-option').filter({ hasText: 'Development' }).click();
+      
+      await page.getByRole('textbox', { name: 'Role' }).fill('テスト役職');
+      await page.getByRole('button', { name: 'OK' }).click();
+      
+      await expect(page.getByText('Subordinate added successfully')).toBeVisible();
+      await expect(page.getByText(uniqueName)).toBeVisible();
+    }
+    
+    // 2. Go back to dashboard
+    await page.goto('/');
     await expect(page).toHaveTitle(/Memento 1on1/);
     await expect(page.getByText('Start 1on1')).toBeVisible();
 
-    // 2. Start Session Modal
+    // 3. Start Session Modal
     await page.getByText('Start 1on1').click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText('Start New 1on1 Session')).toBeVisible();
+    
+    // Wait a moment for data to load
+    await page.waitForTimeout(2000);
 
-    // Fill form
-    // Antd Select is a bit tricky, often needs to click the trigger
-    const subSelect = page.locator('#subordinateId'); // Antd puts id on input
-    await subSelect.click();
-    // Select first option
+    // Fill form - simpler approach: use getByLabel for accessibility
+    await page.getByLabel('Subordinate').click();
+    
+    // Wait for dropdown and select first option
+    await page.waitForSelector('.ant-select-dropdown', { timeout: 10000 });
+    await page.locator('.ant-select-item-option').first().waitFor({ state: 'visible', timeout: 10000 });
     await page.locator('.ant-select-item-option').first().click();
 
     // Type Theme
-    await page.fill('#theme', 'Playwright Test Theme');
+    await page.getByLabel('Theme / Topic').fill('Playwright Test Theme');
 
     // Click OK (Start Session)
-    await page.getByText('Start Session', { exact: true }).click();
+    await page.getByRole('button', { name: 'Start Session' }).click();
 
     // 3. Verify Session Page URL (UUID format)
     await expect(page).toHaveURL(/\/session\/[0-9a-f-]+/);

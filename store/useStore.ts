@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
+import { createClientComponentClient } from '@/lib/supabase';
 import { Node, Edge } from '@xyflow/react';
 
 
@@ -87,118 +87,146 @@ export const useStore = create<AppState>((set, get) => ({
   setUserId: (userId: string) => set({ userId }),
 
   fetchSubordinates: async () => {
-    if (!supabase) return;
-    set({ isLoading: true });
-    const { userId } = get();
-    let query = supabase.from('subordinates').select('*');
-    
-    // Filter by user_id if userId is set
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) {
-      set({ error: error.message, isLoading: false });
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mappedData = data.map((item: any) => ({
-        ...item,
-        traits: typeof item.traits === 'string' ? JSON.parse(item.traits) : item.traits
-      }));
-      set({ subordinates: mappedData, isLoading: false });
+    console.log('fetchSubordinates called, userId:', get().userId);
+    try {
+      const client = createClientComponentClient();
+      set({ isLoading: true });
+      const { userId } = get();
+      let query = client.from('subordinates').select('*');
+      
+      // Filter by user_id if userId is set
+      if (userId) {
+        query = query.eq('user_id', userId);
+        console.log('fetchSubordinates: filtering by user_id:', userId);
+      } else {
+        console.log('fetchSubordinates: no userId, fetching all subordinates');
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('fetchSubordinates error:', error.message);
+        console.error('fetchSubordinates error details:', error);
+        set({ error: error.message, isLoading: false });
+      } else {
+        console.log('fetchSubordinates success, data count:', data.length);
+        console.log('fetchSubordinates raw data:', data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedData = data.map((item: any) => ({
+          ...item,
+          traits: typeof item.traits === 'string' ? JSON.parse(item.traits) : item.traits
+        }));
+        set({ subordinates: mappedData, isLoading: false });
+      }
+    } catch (err) {
+      console.error('fetchSubordinates: failed to create client:', err);
+      set({ isLoading: false });
     }
   },
 
   fetchSessions: async () => {
-    console.log('fetchSessions called, supabase:', !!supabase);
-    if (!supabase) {
-      console.log('fetchSessions: supabase is null, returning early');
-      return;
-    }
-    set({ isLoading: true });
-    const { data, error } = await supabase.from('sessions').select('*').order('date', { ascending: false });
-    if (error) {
-      console.error('fetchSessions error:', error);
-      set({ error: error.message, isLoading: false });
-    } else {
-      console.log('fetchSessions success, data count:', data?.length || 0);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mappedData = data.map((item: any) => ({
-        id: item.id,
-        subordinateId: item.subordinate_id,
-        date: item.date,
-        mode: item.mode,
-        theme: item.theme,
-        summary: item.summary,
-        status: item.status,
-        transcript: item.transcript,
-        mindMapData: item.mind_map_data,
-        agendaItems: item.agenda_items,
-        notes: item.notes,
-        nextSessionDate: item.next_session_date,
-        nextSessionDurationMinutes: item.next_session_duration_minutes,
-        lineReminderScheduled: item.line_reminder_scheduled,
-        lineReminderSentAt: item.line_reminder_sent_at,
-        userId: item.user_id
-      }));
-      set({ sessions: mappedData, isLoading: false });
+    console.log('fetchSessions called');
+    try {
+      const client = createClientComponentClient();
+      set({ isLoading: true });
+      const { data, error } = await client.from('sessions').select('*').order('date', { ascending: false });
+      if (error) {
+        console.error('fetchSessions error:', error);
+        set({ error: error.message, isLoading: false });
+      } else {
+        console.log('fetchSessions success, data count:', data?.length || 0);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedData = data.map((item: any) => ({
+          id: item.id,
+          subordinateId: item.subordinate_id,
+          date: item.date,
+          mode: item.mode,
+          theme: item.theme,
+          summary: item.summary,
+          status: item.status,
+          transcript: item.transcript,
+          mindMapData: item.mind_map_data,
+          agendaItems: item.agenda_items,
+          notes: item.notes,
+          nextSessionDate: item.next_session_date,
+          nextSessionDurationMinutes: item.next_session_duration_minutes,
+          lineReminderScheduled: item.line_reminder_scheduled,
+          lineReminderSentAt: item.line_reminder_sent_at,
+          userId: item.user_id
+        }));
+        set({ sessions: mappedData, isLoading: false });
+      }
+    } catch (err) {
+      console.error('fetchSessions: failed to create client:', err);
+      set({ isLoading: false });
     }
   },
 
   addSubordinate: async (sub) => {
-    if (!supabase) return;
-    set({ isLoading: true });
-    const { userId } = get();
-    const insertData: Record<string, unknown> = {
-      name: sub.name,
-      role: sub.role,
-      department: sub.department,
-      traits: sub.traits
-    };
-    
-    // Set user_id if available
-    if (userId) {
-      insertData.user_id = userId;
-    }
-    
-    const { data, error } = await supabase.from('subordinates').insert([insertData]).select();
+    try {
+      const client = createClientComponentClient();
+      set({ isLoading: true });
+      const { userId } = get();
+      
+      const subordinateData = {
+        name: sub.name,
+        role: sub.role,
+        department: sub.department,
+        traits: sub.traits,
+        user_id: userId,
+      };
 
-    if (error) {
-      set({ error: error.message, isLoading: false });
-    } else if (data) {
-      const newSub = data[0];
-      set((state) => ({ 
-        subordinates: [newSub, ...state.subordinates],
-        isLoading: false 
-      }));
+      const { data, error } = await client
+        .from('subordinates')
+        .insert(subordinateData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding subordinate:', error);
+        set({ error: error.message, isLoading: false });
+      } else {
+        console.log('Subordinate added:', data);
+        const newSubordinate = {
+          id: data.id,
+          name: data.name,
+          role: data.role,
+          department: data.department,
+          traits: data.traits,
+        };
+        set((state) => ({ 
+          subordinates: [newSubordinate, ...state.subordinates],
+          isLoading: false 
+        }));
+      }
+    } catch (err) {
+      console.error('addSubordinate: failed to create client:', err);
+      set({ isLoading: false });
     }
   },
 
   addSession: async (session, userId) => {
-    if (!supabase) return null;
-    set({ isLoading: true });
-    
+    try {
+      const client = createClientComponentClient();
+      set({ isLoading: true });
+      
+      const { data, error } = await client.from('sessions').insert([{
+        subordinate_id: session.subordinateId,
+        date: session.date,
+        mode: session.mode,
+        theme: session.theme,
+        status: 'live', // Start as live immediately for this prototype flow
+        ...(userId ? { user_id: userId } : {}),
+        transcript: [],
+        mind_map_data: {}
+      }]).select();
 
-    
-    const { data, error } = await supabase.from('sessions').insert([{
-      subordinate_id: session.subordinateId,
-      date: session.date,
-      mode: session.mode,
-      theme: session.theme,
-      status: 'live', // Start as live immediately for this prototype flow
-      ...(userId ? { user_id: userId } : {}),
-      transcript: [],
-      mind_map_data: {}
-    }]).select();
-
-    if (error) {
-      set({ error: error.message, isLoading: false });
-      return null;
-    } else if (data) {
-      const newSession = {
-        ...data[0],
+      if (error) {
+        set({ error: error.message, isLoading: false });
+        return null;
+      } else if (data) {
+        const newSession = {
+          ...data[0],
         subordinateId: data[0].subordinate_id,
         mindMapData: data[0].mind_map_data
       };
@@ -212,66 +240,75 @@ export const useStore = create<AppState>((set, get) => ({
       return newSession.id;
     }
     return null;
+    } catch (err) {
+      console.error('addSession: failed to create client:', err);
+      set({ isLoading: false });
+      return null;
+    }
   },
 
   updateSubordinate: async (id, updates) => {
-    if (!supabase) return;
-    // Optimistic update
-    set((state) => ({
-      subordinates: state.subordinates.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-    }));
+    try {
+      const client = createClientComponentClient();
+      // Optimistic update
+      set((state) => ({
+        subordinates: state.subordinates.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      }));
 
-    // DB map
-    const dbUpdates: Record<string, unknown> = {};
-    if (updates.name) dbUpdates.name = updates.name;
-    if (updates.role) dbUpdates.role = updates.role;
-    if (updates.department) dbUpdates.department = updates.department;
-    if (updates.traits) dbUpdates.traits = updates.traits;
-    if (updates.lastOneOnOne) dbUpdates.last_one_on_one = updates.lastOneOnOne;
+      // DB map
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.name) dbUpdates.name = updates.name;
+      if (updates.role) dbUpdates.role = updates.role;
+      if (updates.department) dbUpdates.department = updates.department;
+      if (updates.traits) dbUpdates.traits = updates.traits;
+      if (updates.lastOneOnOne) dbUpdates.last_one_on_one = updates.lastOneOnOne;
 
-    const { error } = await supabase.from('subordinates').update(dbUpdates).eq('id', id);
-    if (error) {
-      console.error("Failed to sync subordinate update", error);
-      // Revert or show error could be handled here
+      const { error } = await client.from('subordinates').update(dbUpdates).eq('id', id);
+      if (error) {
+        console.error("Failed to sync subordinate update", error);
+        // Revert or show error could be handled here
+      }
+    } catch (err) {
+      console.error('updateSubordinate: failed to create client:', err);
     }
   },
 
   updateSession: async (id, updates) => {
-    if (!supabase) return;
-    console.log('updateSession called:', { id, updates });
-    // Optimistic update
-    set((state) => ({
-      sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-    }));
-
-    // DB map
-    const dbUpdates: Record<string, unknown> = {};
-    if (updates.status) dbUpdates.status = updates.status;
-    if (updates.summary) dbUpdates.summary = updates.summary;
-    if (updates.transcript) dbUpdates.transcript = updates.transcript;
-    if (updates.mindMapData) {
-      // Log mindmap data structure for debugging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('MindMapData to save:', {
-          nodesCount: updates.mindMapData.nodes?.length || 0,
-          edgesCount: updates.mindMapData.edges?.length || 0,
-          nodesSample: updates.mindMapData.nodes?.slice(0, 1),
-          edgesSample: updates.mindMapData.edges?.slice(0, 1),
-        });
-      }
-      dbUpdates.mind_map_data = updates.mindMapData;
-    }
-    if (updates.agendaItems) dbUpdates.agenda_items = updates.agendaItems;
-    if (updates.notes) dbUpdates.notes = updates.notes;
-    if (updates.nextSessionDate !== undefined) dbUpdates.next_session_date = updates.nextSessionDate;
-    if (updates.nextSessionDurationMinutes !== undefined) dbUpdates.next_session_duration_minutes = updates.nextSessionDurationMinutes;
-    if (updates.lineReminderScheduled !== undefined) dbUpdates.line_reminder_scheduled = updates.lineReminderScheduled;
-    if (updates.lineReminderSentAt !== undefined) dbUpdates.line_reminder_sent_at = updates.lineReminderSentAt;
-    if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
-
-    console.log('Updating Supabase session with:', dbUpdates);
     try {
-      const { error, data } = await supabase
+      const client = createClientComponentClient();
+      console.log('updateSession called:', { id, updates });
+      // Optimistic update
+      set((state) => ({
+        sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      }));
+
+      // DB map
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.status) dbUpdates.status = updates.status;
+      if (updates.summary) dbUpdates.summary = updates.summary;
+      if (updates.transcript) dbUpdates.transcript = updates.transcript;
+      if (updates.mindMapData) {
+        // Log mindmap data structure for debugging
+        if (process.env.NODE_ENV === 'development') {
+          console.log('MindMapData to save:', {
+            nodesCount: updates.mindMapData.nodes?.length || 0,
+            edgesCount: updates.mindMapData.edges?.length || 0,
+            nodesSample: updates.mindMapData.nodes?.slice(0, 1),
+            edgesSample: updates.mindMapData.edges?.slice(0, 1),
+          });
+        }
+        dbUpdates.mind_map_data = updates.mindMapData;
+      }
+      if (updates.agendaItems) dbUpdates.agenda_items = updates.agendaItems;
+      if (updates.notes) dbUpdates.notes = updates.notes;
+      if (updates.nextSessionDate !== undefined) dbUpdates.next_session_date = updates.nextSessionDate;
+      if (updates.nextSessionDurationMinutes !== undefined) dbUpdates.next_session_duration_minutes = updates.nextSessionDurationMinutes;
+      if (updates.lineReminderScheduled !== undefined) dbUpdates.line_reminder_scheduled = updates.lineReminderScheduled;
+      if (updates.lineReminderSentAt !== undefined) dbUpdates.line_reminder_sent_at = updates.lineReminderSentAt;
+      if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
+
+      console.log('Updating Supabase session with:', dbUpdates);
+      const { error, data } = await client
         .from('sessions')
         .update(dbUpdates)
         .eq('id', id)

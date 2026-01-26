@@ -15,16 +15,17 @@ if (fs.existsSync(testEnvPath)) {
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Use service role key to bypass RLS for setup
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-async function ensureSubordinate() {
+async function ensureSubordinate(userId) {
   console.log('Checking for existing subordinates...');
   
   const { data, error } = await supabase
@@ -49,6 +50,7 @@ async function ensureSubordinate() {
     role: 'エンジニア',
     department: '開発部',
     traits: ['詳細志向', '論理的', '協調性'],
+    user_id: userId, // Set user_id from parameter
   };
 
   const { data: inserted, error: insertError } = await supabase
@@ -62,7 +64,7 @@ async function ensureSubordinate() {
     return null;
   }
 
-  console.log(`✓ Created default subordinate: ${inserted.name} (ID: ${inserted.id})`);
+  console.log(`✓ Created default subordinate: ${inserted.name} (ID: ${inserted.id}) for user: ${userId}`);
   return inserted;
 }
 
@@ -74,15 +76,16 @@ async function ensureTestUser() {
   
   // Try to sign in
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { data: _, error: signInError } = await supabase.auth.signInWithPassword({
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,
   });
 
   if (!signInError) {
     console.log('✓ Test user exists and can log in');
+    const userId = signInData.user.id;
     await supabase.auth.signOut();
-    return true;
+    return userId;
   }
 
   console.log('Test user not found or cannot log in:', signInError.message);
@@ -100,15 +103,15 @@ async function ensureTestUser() {
 
   if (signUpError) {
     console.error('✗ Failed to create test user:', signUpError.message);
-    return false;
+    return null;
   }
 
   if (signUpData.user) {
     console.log('✓ Test user created:', signUpData.user.email);
-    return true;
+    return signUpData.user.id;
   } else {
     console.log('⚠ User creation returned no user data - check email confirmation');
-    return false;
+    return null;
   }
 }
 
@@ -117,14 +120,16 @@ async function ensureTestUser() {
 async function main() {
   console.log('=== Setting up test data ===\n');
   
-  // Step 1: Ensure test user exists
-  const userOk = await ensureTestUser();
-  if (!userOk) {
+  // Step 1: Ensure test user exists and get user ID
+  const userId = await ensureTestUser();
+  if (!userId) {
     console.log('\n❌ Test user setup failed. Tests may fail.');
+  } else {
+    console.log(`✓ Test user ID: ${userId}`);
   }
   
-  // Step 2: Ensure at least one subordinate exists
-  const subordinate = await ensureSubordinate();
+  // Step 2: Ensure at least one subordinate exists (pass user ID)
+  const subordinate = await ensureSubordinate(userId);
   if (!subordinate) {
     console.log('\n❌ Could not ensure subordinate exists. Tests may fail.');
   }

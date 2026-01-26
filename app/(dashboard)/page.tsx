@@ -180,7 +180,7 @@ export default function Dashboard() {
             label="Subordinate"
             rules={[{ required: true, message: 'Please select a subordinate' }]}
           >
-            <Select placeholder="Select a subordinate">
+            <Select placeholder="Select a subordinate" id="subordinateId">
               {subordinates.map((sub) => (
                 <Option key={sub.id} value={sub.id}>{sub.name}</Option>
               ))}
@@ -203,7 +203,7 @@ export default function Dashboard() {
             label="Theme / Topic"
             rules={[{ required: true, message: 'Please enter a theme' }]}
           >
-            <Input placeholder="e.g., Career Growth, Project A, Feedback" />
+            <Input placeholder="e.g., Career Growth, Project A, Feedback" id="theme" />
           </Form.Item>
 
           <Form.Item

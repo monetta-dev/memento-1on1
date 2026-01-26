@@ -8,7 +8,7 @@ test.describe('認証フロー', () => {
     
     // ログインページにリダイレクトされることを確認
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByText('Memento 1on1')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Memento 1on1' })).toBeVisible();
     await expect(page.getByText('1on1をより効果的に、継続的に')).toBeVisible();
   });
 
@@ -18,7 +18,7 @@ test.describe('認証フロー', () => {
     
     // ページタイトルと要素を確認
     await expect(page).toHaveTitle(/Memento 1on1/);
-    await expect(page.getByText('Memento 1on1')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Memento 1on1' })).toBeVisible();
     await expect(page.getByText('1on1をより効果的に、継続的に')).toBeVisible();
     
     // フォーム要素を確認（プレースホルダーを使用）
@@ -104,7 +104,7 @@ test.describe('認証フロー', () => {
     // サインアップページからログインページへ
     await page.getByText('ログイン').click();
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByText('Memento 1on1')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Memento 1on1' })).toBeVisible();
   });
 
   // 注: Google OAuthのテストは実際の認証が必要なため、コメントアウト
