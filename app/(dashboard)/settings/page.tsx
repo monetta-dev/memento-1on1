@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown } from 'antd';
+import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Tag } from 'antd';
 import type { MenuProps } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
 import { createClientComponentClient } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const { Title } = Typography;
 
@@ -40,9 +40,26 @@ export default function SettingsPage() {
         const hasGoogleToken = !!session.provider_token;
         setGoogleConnected(hasGoogleToken);
         
-        // LINE connection status would come from your backend/db
-        // For now, default to false
-        setLineConnected(false);
+        // Check LINE connection status from database
+        try {
+          const { data: lineData, error: lineError } = await supabase
+            .from('line_notifications')
+            .select('id, line_user_id, enabled, line_display_name')
+            .eq('user_id', session.user.id)
+            .eq('enabled', true)
+            .not('line_user_id', 'is', null)
+            .single();
+          
+          if (!lineError && lineData) {
+            setLineConnected(true);
+            console.log('LINE connected for user:', session.user.id, 'LINE user:', lineData.line_display_name);
+          } else {
+            setLineConnected(false);
+          }
+        } catch (error) {
+          console.error('Error checking LINE connection:', error);
+          setLineConnected(false);
+        }
       } catch (error) {
         console.error('Error checking auth status:', error);
         router.push('/login');
@@ -101,28 +118,41 @@ export default function SettingsPage() {
   const handleLineConnect = async () => {
     setLineLoading(true);
     try {
-      // モック実装: LINE連携APIを呼び出す
+      console.log('Starting LINE connect for user:', userEmail);
       const response = await fetch('/api/line/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userEmail })
       });
+      console.log('Response status:', response.status, response.ok, 'headers:', Object.fromEntries(response.headers.entries()));
       
-      if (response.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const _ = await response.json();
-        setLineConnected(true);
-        message.success('LINE連携を開始しました');
+      const result = await response.json();
+       console.log('LINE connect API response:', result);
+       console.log('oauthUrl present?', !!result.oauthUrl, 'oauthUrl:', result.oauthUrl);
+       
+       if (response.ok && result.success) {
+        if (result.oauthUrl) {
+          console.log('Redirecting to LINE OAuth URL:', result.oauthUrl);
+          try {
+            window.location.href = result.oauthUrl;
+          } catch (err) {
+            console.error('Redirect failed:', err);
+            message.error('リダイレクトに失敗しました');
+          }
+          // リダイレクトされるのでここで処理終了
+          return;
+        } else {
+          // oauthUrlがない場合（モックモードなど）
+          setLineConnected(true);
+          message.success(result.message || 'LINE連携を開始しました');
+        }
       } else {
-        throw new Error('LINE連携に失敗しました');
+        throw new Error(result.error || result.details || 'LINE連携に失敗しました');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('LINE connect error:', error);
-      // モックフォールバック
-      setTimeout(() => {
-        setLineConnected(true);
-        message.success('LINE連携を開始しました（モック実装）');
-      }, 1000);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      message.error(`LINE連携に失敗しました: ${errorMessage}`);
     } finally {
       setLineLoading(false);
     }
@@ -167,14 +197,15 @@ export default function SettingsPage() {
       id: 'google-calendar',
       title: 'Googleカレンダー連携',
       description: isGoogleAuth 
-        ? '次回の1on1セッションを自動的にスケジュールし、カレンダーと同期します。'
-        : 'Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。',
+        ? 'カレンダー連携が利用可能です'
+        : 'Googleでサインインしてカレンダー連携を有効にしてください',
       icon: <CalendarOutlined style={{ color: '#fadb14' }} />,
       connected: googleConnected,
       loading: googleLoading,
-      disabled: !isGoogleAuth,
-      onConnect: isGoogleAuth ? handleGoogleConnect : () => {},
+      disabled: googleLoading,
+      onConnect: handleGoogleConnect,
       onDisconnect: isGoogleAuth ? handleGoogleDisconnect : () => {},
+      isGoogleCalendar: true,
     },
     {
       id: 'line',
@@ -186,6 +217,7 @@ export default function SettingsPage() {
       disabled: false,
       onConnect: handleLineConnect,
       onDisconnect: handleLineDisconnect,
+      isGoogleCalendar: false,
     },
   ];
 
@@ -243,37 +275,58 @@ export default function SettingsPage() {
                     <div className="ant-list-item-meta-description" style={{ color: 'rgba(0, 0, 0, 0.45)' }}>{item.description}</div>
                   </div>
                 </div>
-                <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Switch 
-                      checkedChildren="連携中" 
-                      unCheckedChildren="未連携" 
-                      checked={item.connected}
-                      onChange={(checked) => checked ? item.onConnect() : item.onDisconnect()}
-                      loading={item.loading}
-                      disabled={item.disabled || item.loading}
-                    />
-                    <Button 
-                      type="default" 
-                      size="small"
-                      icon={item.connected ? <DisconnectOutlined /> : <LinkOutlined />}
-                      onClick={item.connected ? item.onDisconnect : item.onConnect}
-                      loading={item.loading}
-                      disabled={item.disabled || item.loading}
-                    >
-                      {item.connected ? '切断' : '接続'}
-                    </Button>
-                </div>
+                 <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {item.isGoogleCalendar ? (
+                      // Google Calendar: Show status tag for Google auth users, button for email auth users
+                      isGoogleAuth ? (
+                        <Tag color="success" style={{ margin: 0 }}>連携可能</Tag>
+                      ) : (
+                        <Button 
+                          type="primary" 
+                          size="small"
+                          icon={<GoogleOutlined />}
+                          onClick={item.onConnect}
+                          loading={item.loading}
+                          disabled={item.disabled || item.loading}
+                        >
+                          Googleでサインイン
+                        </Button>
+                      )
+                    ) : (
+                     // LINE: Keep existing switch and button
+                     <>
+                       <Switch 
+                         checkedChildren="連携中" 
+                         unCheckedChildren="未連携" 
+                         checked={item.connected}
+                         onChange={(checked) => checked ? item.onConnect() : item.onDisconnect()}
+                         loading={item.loading}
+                         disabled={item.disabled || item.loading}
+                       />
+                       <Button 
+                         type="default" 
+                         size="small"
+                         icon={item.connected ? <DisconnectOutlined /> : <LinkOutlined />}
+                         onClick={item.connected ? item.onDisconnect : item.onConnect}
+                         loading={item.loading}
+                         disabled={item.disabled || item.loading}
+                       >
+                         {item.connected ? '切断' : '接続'}
+                       </Button>
+                     </>
+                   )}
+                 </div>
               </div>
             ))}
           </div>
           <div style={{ marginTop: 16, padding: 12, background: isGoogleAuth ? '#f6ffed' : '#fffbe6', border: isGoogleAuth ? '1px solid #b7eb8f' : '1px solid #ffe58f', borderRadius: 4 }}>
-            <Typography.Text type="secondary">
-              {isGoogleAuth ? (
-                <><strong>注意:</strong> Googleカレンダー連携にはイベント作成の追加スコープが必要です。接続後、次回の1on1セッションを自動的にスケジュールできます。</>
-              ) : (
-                <><strong>制限:</strong> Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。現在はメールアドレスでのログインのため、カレンダー連携は利用できません。</>
-              )}
-            </Typography.Text>
+             <Typography.Text type="secondary">
+               {isGoogleAuth ? (
+                 <><strong>注意:</strong> Googleカレンダー連携が有効です。次回の1on1セッションをスケジュールできます。</>
+               ) : (
+                 <><strong>制限:</strong> Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。</>
+               )}
+             </Typography.Text>
           </div>
         </Card>
     </div>

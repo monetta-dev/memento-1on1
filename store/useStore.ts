@@ -51,6 +51,13 @@ export interface Session {
   notes?: Note[];
   status: 'scheduled' | 'completed' | 'live';
   created_at?: string;
+  // Next session scheduling for LINE reminders
+  nextSessionDate?: string;
+  nextSessionDurationMinutes?: number;
+  lineReminderScheduled?: boolean;
+  lineReminderSentAt?: string;
+  // User association for LINE notifications
+  userId?: string;
 }
 
 interface AppState {
@@ -64,7 +71,7 @@ interface AppState {
   fetchSessions: () => Promise<void>;
   addSubordinate: (sub: Omit<Subordinate, 'id' | 'created_at'>) => Promise<void>;
   updateSubordinate: (id: string, updates: Partial<Subordinate>) => Promise<void>;
-  addSession: (session: Omit<Session, 'id' | 'created_at' | 'status'>) => Promise<string | null>;
+  addSession: (session: Omit<Session, 'id' | 'created_at' | 'status'>, userId?: string) => Promise<string | null>;
   updateSession: (id: string, updates: Partial<Session>) => Promise<void>;
   getSession: (id: string) => Session | undefined;
 }
@@ -116,7 +123,12 @@ export const useStore = create<AppState>((set, get) => ({
         transcript: item.transcript,
         mindMapData: item.mind_map_data,
         agendaItems: item.agenda_items,
-        notes: item.notes
+        notes: item.notes,
+        nextSessionDate: item.next_session_date,
+        nextSessionDurationMinutes: item.next_session_duration_minutes,
+        lineReminderScheduled: item.line_reminder_scheduled,
+        lineReminderSentAt: item.line_reminder_sent_at,
+        userId: item.user_id
       }));
       set({ sessions: mappedData, isLoading: false });
     }
@@ -143,7 +155,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  addSession: async (session) => {
+  addSession: async (session, userId) => {
     if (!supabase) return null;
     set({ isLoading: true });
     
@@ -155,6 +167,7 @@ export const useStore = create<AppState>((set, get) => ({
       mode: session.mode,
       theme: session.theme,
       status: 'live', // Start as live immediately for this prototype flow
+      ...(userId ? { user_id: userId } : {}),
       transcript: [],
       mind_map_data: {}
     }]).select();
@@ -229,6 +242,11 @@ export const useStore = create<AppState>((set, get) => ({
     }
     if (updates.agendaItems) dbUpdates.agenda_items = updates.agendaItems;
     if (updates.notes) dbUpdates.notes = updates.notes;
+    if (updates.nextSessionDate !== undefined) dbUpdates.next_session_date = updates.nextSessionDate;
+    if (updates.nextSessionDurationMinutes !== undefined) dbUpdates.next_session_duration_minutes = updates.nextSessionDurationMinutes;
+    if (updates.lineReminderScheduled !== undefined) dbUpdates.line_reminder_scheduled = updates.lineReminderScheduled;
+    if (updates.lineReminderSentAt !== undefined) dbUpdates.line_reminder_sent_at = updates.lineReminderSentAt;
+    if (updates.userId !== undefined) dbUpdates.user_id = updates.userId;
 
     console.log('Updating Supabase session with:', dbUpdates);
     try {

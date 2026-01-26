@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { createBrowserClient, createServerClient as createServerClientFromSSR } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -18,8 +18,7 @@ export const createClientComponentClient = () => {
 };
 
 // For server components (requires cookies)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const createServerClient = (_: {
+export const createServerClient = (cookieStore: {
   getAll: () => { name: string; value: string }[];
   setAll: (cookies: { name: string; value: string; options: Record<string, unknown> }[]) => void;
 }) => {
@@ -27,19 +26,44 @@ export const createServerClient = (_: {
     throw new Error('Missing Supabase environment variables');
   }
   
-  // Using createClient for server components (simplified version)
-  // In a real implementation, you would use createServerClient from @supabase/ssr
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createServerClientFromSSR(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll: cookieStore.getAll,
+      setAll: cookieStore.setAll,
+    },
+    cookieOptions: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
+  });
 };
 
 // For route handlers (App Router)
-export const createRouteHandlerClient = () => {
+export const createRouteHandlerClient = (cookieStore?: {
+  getAll: () => { name: string; value: string }[];
+  setAll: (cookies: { name: string; value: string; options: Record<string, unknown> }[]) => void;
+}) => {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
   }
   
-  // Create a simple client for route handlers
-  // Note: For proper auth, you'd want to use createServerClient with cookies
+  if (cookieStore) {
+    // Use createServerClient for proper auth with cookies
+    return createServerClientFromSSR(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll: cookieStore.getAll,
+        setAll: cookieStore.setAll,
+      },
+      cookieOptions: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      },
+    });
+  }
+  
+  // Fallback: simple client without cookies (for backward compatibility)
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,

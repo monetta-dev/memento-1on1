@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { createClientComponentClient } from '@/lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 import { useStore, Session, Subordinate, TranscriptItem } from '@/store/useStore';
+import ScheduleNextMeetingSection from '@/components/session/ScheduleNextMeetingSection';
 
 const { Title, Text } = Typography;
 
@@ -346,6 +347,14 @@ export default function SessionSummaryPage() {
 
       {/* AIサマリー */}
       {renderAISummary}
+
+      {/* 次回の1on1セッションをスケジュール */}
+      {session.status === 'completed' && subordinate && (
+        <ScheduleNextMeetingSection
+          sessionId={session.id}
+          subordinateName={subordinate.name}
+        />
+      )}
 
       {/* トランスクリプト */}
       {renderTranscript}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Typography, Card, Button, Table, Tag, Modal, Form, Select, Input, Radio, DatePicker } from 'antd';
 import { PlusOutlined, VideoCameraOutlined, UserOutlined } from '@ant-design/icons';
 import { useStore, Session } from '@/store/useStore';
+import { createClientComponentClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 
@@ -27,6 +28,14 @@ export default function Dashboard() {
 
   const handleOk = () => {
     form.validateFields().then(async (values) => {
+      const supabase = createClientComponentClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (!userId) {
+        console.warn('User ID not found, creating session without user association');
+      }
+      
       const startDate = values.sessionDateTime.toDate();
       
       const sessionId = await addSession({
@@ -34,7 +43,7 @@ export default function Dashboard() {
         date: startDate.toISOString(),
         mode: values.mode,
         theme: values.theme,
-      });
+      }, userId);
       
       if (sessionId) {
         setIsModalVisible(false);
