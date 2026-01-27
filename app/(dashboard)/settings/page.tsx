@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Tag } from 'antd';
 import type { MenuProps } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
-import { createClientComponentClient } from '@/lib/supabase';
+import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const { Title } = Typography;
@@ -78,7 +78,7 @@ export default function SettingsPage() {
       const { data: _, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: getOAuthRedirectUrl(),
           scopes: 'https://www.googleapis.com/auth/calendar.events',
           queryParams: {
             access_type: 'offline',

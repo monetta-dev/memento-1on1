@@ -23,9 +23,10 @@ const mockSupabaseClient = {
   },
 };
 
-// Mock createClientComponentClient
+// Mock createClientComponentClient and getOAuthRedirectUrl
 vi.mock('@/lib/supabase', () => ({
   createClientComponentClient: vi.fn(() => mockSupabaseClient),
+  getOAuthRedirectUrl: vi.fn(() => 'http://localhost:3000/auth/callback'),
 }));
 
 // Test component that uses the auth context

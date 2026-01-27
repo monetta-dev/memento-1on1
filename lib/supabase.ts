@@ -70,3 +70,26 @@ export const createRouteHandlerClient = (cookieStore?: {
     }
   });
 };
+
+/**
+ * Get OAuth redirect URL for authentication callbacks
+ * Uses NEXT_PUBLIC_SITE_URL environment variable if available,
+ * otherwise falls back to window.location.origin (client-side only)
+ * 
+ * @returns Full redirect URL including /auth/callback path
+ */
+export const getOAuthRedirectUrl = (): string => {
+  // Use environment variable if available (works in both build and runtime)
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`;
+  }
+  
+  // Fallback to window.location.origin only in client-side
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/auth/callback`;
+  }
+  
+  // During build/server-side rendering without env var, return empty
+  // This should only happen if NEXT_PUBLIC_SITE_URL is not set
+  return '/auth/callback';
+};

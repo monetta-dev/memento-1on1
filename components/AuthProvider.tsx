@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { createClientComponentClient } from '@/lib/supabase';
+import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -88,8 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    const redirectUrl = `${siteUrl}/auth/callback`;
+    const redirectUrl = getOAuthRedirectUrl();
     console.log('Google OAuth redirect URL:', redirectUrl);
     
     try {
