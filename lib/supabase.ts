@@ -77,6 +77,7 @@ export const createRouteHandlerClient = (cookieStore?: {
  * otherwise falls back to window.location.origin (client-side only)
  * 
  * @returns Full redirect URL including /auth/callback path
+ * @throws Error in server-side rendering when NEXT_PUBLIC_SITE_URL is not set
  */
 export const getOAuthRedirectUrl = (): string => {
   // Use environment variable if available (works in both build and runtime)
@@ -86,10 +87,20 @@ export const getOAuthRedirectUrl = (): string => {
   
   // Fallback to window.location.origin only in client-side
   if (typeof window !== 'undefined') {
+    // Log warning in development about missing environment variable
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        'NEXT_PUBLIC_SITE_URL environment variable is not set. ' +
+        'Using window.location.origin as fallback. ' +
+        'This may cause issues in production builds.'
+      );
+    }
     return `${window.location.origin}/auth/callback`;
   }
   
-  // During build/server-side rendering without env var, return empty
-  // This should only happen if NEXT_PUBLIC_SITE_URL is not set
-  return '/auth/callback';
+  // Server-side rendering without env var - throw error for clarity
+  throw new Error(
+    'NEXT_PUBLIC_SITE_URL environment variable is required for server-side OAuth redirects. ' +
+    'Please set it in your environment variables.'
+  );
 };

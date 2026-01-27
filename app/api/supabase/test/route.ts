@@ -51,13 +51,22 @@ export async function GET() {
           count: sessionsData?.length || 0
         }
       },
-      env: {
+       env: {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'not set',
         supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'set' : 'not set',
+        siteUrl: process.env.NEXT_PUBLIC_SITE_URL ? 'set' : 'not set',
         livekitUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL ? 'set' : 'not set',
         livekitKey: process.env.LIVEKIT_API_KEY ? 'set' : 'not set',
         geminiKey: process.env.GEMINI_API_KEY ? 'set' : 'not set',
-        deepgramKey: process.env.DEEPGRAM_API_KEY ? 'set' : 'not set'
+        deepgramKey: process.env.DEEPGRAM_API_KEY ? 'set' : 'not set',
+        lineChannelId: process.env.LINE_LOGIN_CHANNEL_ID ? 'set' : 'not set',
+        lineChannelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET ? 'set' : 'not set',
+        lineRedirectUri: process.env.LINE_REDIRECT_URI ? 'set' : 'not set'
+      },
+      oauth: {
+        googleRedirectUrl: process.env.NEXT_PUBLIC_SITE_URL ? 
+          `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` : 'not set (NEXT_PUBLIC_SITE_URL missing)',
+        lineRedirectUrl: process.env.LINE_REDIRECT_URI || 'not set'
       }
     });
 
