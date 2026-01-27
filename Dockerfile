@@ -1,6 +1,17 @@
 # Build stage
 FROM node:22-alpine AS builder
 
+# Build arguments for Next.js public environment variables
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# Set environment variables for build
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NODE_ENV=production
+
 # Set working directory
 WORKDIR /app
 
