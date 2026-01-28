@@ -34,7 +34,7 @@ const MindMapPanel: React.FC<MindMapPanelProps> = ({
       {!isReadOnly && (
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
           <Button icon={<PlusCircleOutlined />} onClick={handleAddNode}>
-            Add Topic
+             トピック追加
           </Button>
         </div>
       )}

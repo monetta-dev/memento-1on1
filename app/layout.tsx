@@ -5,6 +5,7 @@ import { ConfigProvider } from "antd";
 import theme from "@/theme/themeConfig";
 import AntdRegistry from "@/lib/AntdRegistry";
 import { AuthProvider } from "@/components/AuthProvider";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,11 +34,13 @@ export default function RootLayout({
         style={{ margin: 0, padding: 0 }}
       >
          <AntdRegistry>
-           <ConfigProvider theme={theme} warning={{ strict: false }}>
-             <AuthProvider>
-               {children}
-             </AuthProvider>
-           </ConfigProvider>
+            <ConfigProvider theme={theme} warning={{ strict: false }}>
+              <AuthProvider>
+                <LanguageProvider>
+                  {children}
+                </LanguageProvider>
+              </AuthProvider>
+            </ConfigProvider>
          </AntdRegistry>
       </body>
     </html>

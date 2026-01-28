@@ -11,7 +11,7 @@ interface AdvicePanelProps {
 const AdvicePanel: React.FC<AdvicePanelProps> = ({ realTimeAdvice }) => {
   return (
     <Alert
-      message="Real-time Advice"
+       message="リアルタイムアドバイス"
       description={realTimeAdvice}
       type="info"
       showIcon

@@ -29,9 +29,9 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
   isEnding,
   mode = 'web',
 }) => {
-  const buttonText = mode === 'face-to-face' 
-    ? (isMindMapMode ? 'Switch to Dashboard' : 'Switch to MindMap')
-    : (isMindMapMode ? 'Switch to Video' : 'Switch to MindMap');
+   const buttonText = mode === 'face-to-face' 
+     ? (isMindMapMode ? 'ダッシュボードに切り替え' : 'マインドマップに切り替え')
+     : (isMindMapMode ? 'ビデオに切り替え' : 'マインドマップに切り替え');
 
   return (
     <div style={{ position: 'relative', zIndex: 1000 }}>
@@ -73,7 +73,7 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
         }}
         loading={isEnding}
       >
-        End Session
+         セッション終了
        </Button>
      </Flex>
    </div>

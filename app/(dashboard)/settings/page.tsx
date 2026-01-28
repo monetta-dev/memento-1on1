@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Tag } from 'antd';
+import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Tag, Select } from 'antd';
 import type { MenuProps } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -11,6 +12,7 @@ const { Title } = Typography;
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { language, setLanguage, t } = useLanguage();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [lineConnected, setLineConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -106,10 +108,10 @@ export default function SettingsPage() {
       // This would require backend implementation to clear the provider_token
       // For now, we'll just update the UI state
       setGoogleConnected(false);
-      message.success('Google Calendar disconnected (token cleared locally)');
+       message.success('Googleカレンダーの連携を解除しました（トークンをローカルで削除）');
     } catch (error) {
       console.error('Error disconnecting Google:', error);
-      message.error('Failed to disconnect Google Calendar');
+       message.error('Googleカレンダーの切断に失敗しました');
     } finally {
       setGoogleLoading(false);
     }
@@ -327,8 +329,27 @@ export default function SettingsPage() {
                  <><strong>制限:</strong> Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。</>
                )}
              </Typography.Text>
-          </div>
-        </Card>
-    </div>
-  );
-}
+           </div>
+         </Card>
+
+         <Card title="表示設定" variant="borderless" style={{ marginTop: 24 }}>
+           <div style={{ maxWidth: 400 }}>
+             <div style={{ marginBottom: 16 }}>
+               <Typography.Text strong>言語</Typography.Text>
+               <Select
+                 value={language}
+                 onChange={setLanguage}
+                 style={{ width: 200, marginTop: 8 }}
+               >
+                 <Select.Option value="ja">日本語</Select.Option>
+                 <Select.Option value="en">English</Select.Option>
+               </Select>
+               <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                 インターフェースの表示言語を選択します。変更は即時に反映されます。
+               </Typography.Text>
+             </div>
+           </div>
+         </Card>
+     </div>
+   );
+ }

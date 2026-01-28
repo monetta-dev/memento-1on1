@@ -22,7 +22,7 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({ messages, logEndRef }
     <Card
       title={
         <span>
-          <MessageOutlined /> Live Transcript
+           <MessageOutlined /> ライブ文字起こし
         </span>
       }
       size="small"
@@ -69,7 +69,7 @@ const TranscriptPanel: React.FC<TranscriptPanelProps> = ({ messages, logEndRef }
         ))
       ) : (
         <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
-          Waiting for conversation... (Speak into microphone)
+           会話を待機中...（マイクに向かって話してください）
         </div>
       )}
       <div ref={logEndRef} />

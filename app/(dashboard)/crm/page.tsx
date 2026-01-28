@@ -48,7 +48,7 @@ export default function CRMPage() {
       });
       setIsModalVisible(false);
       form.resetFields();
-      message.success('Subordinate added successfully');
+       message.success('部下を追加しました');
     });
   };
 
@@ -78,43 +78,43 @@ export default function CRMPage() {
         await updateSubordinate(selectedSub.id, {
           traits: result.traits
         });
-        message.success(`PDF analyzed successfully. Extracted ${result.traits.length} traits.`);
+         message.success(`PDFを分析しました。${result.traits.length}個の特性を抽出しました。`);
         return true;
       } else {
-        message.error(result.error || 'Failed to analyze PDF');
+         message.error(result.error || 'PDFの分析に失敗しました');
         return false;
       }
     } catch (error) {
       console.error('Upload error:', error);
-      message.error('Upload failed. Please try again.');
+       message.error('アップロードに失敗しました。もう一度お試しください。');
       return false;
     } finally {
       setUploading(false);
     }
   };
 
-  const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', render: (text: string, record: Subordinate) => <a onClick={() => showDetail(record)}>{text}</a> },
-    { title: 'Role', dataIndex: 'role', key: 'role' },
-    { title: 'Department', dataIndex: 'department', key: 'department' },
-    { 
-      title: 'Traits', 
-      dataIndex: 'traits', 
-      key: 'traits',
-      render: (traits: string[]) => (
-        <>
-          {traits.map(tag => <Tag color="blue" key={tag}>{tag}</Tag>)}
-        </>
-      )
-    },
-  ];
+   const columns = [
+     { title: '名前', dataIndex: 'name', key: 'name', render: (text: string, record: Subordinate) => <a onClick={() => showDetail(record)}>{text}</a> },
+     { title: '役職', dataIndex: 'role', key: 'role' },
+     { title: '部署', dataIndex: 'department', key: 'department' },
+     { 
+       title: '特性', 
+       dataIndex: 'traits', 
+       key: 'traits',
+       render: (traits: string[]) => (
+         <>
+           {traits.map(tag => <Tag color="blue" key={tag}>{tag}</Tag>)}
+         </>
+       )
+     },
+   ];
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>Subordinate Management (CRM)</Title>
+         <Title level={2} style={{ margin: 0 }}>部下管理 (CRM)</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
-          Add Subordinate
+           部下を追加
         </Button>
       </div>
 
@@ -123,39 +123,39 @@ export default function CRMPage() {
       </Card>
 
       <Modal
-        title="Add New Subordinate"
+         title="新規部下追加"
         open={isModalVisible}
         onOk={handleAdd}
         onCancel={() => setIsModalVisible(false)}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="department" label="Department" rules={[{ required: true }]}>
-             <Select>
-                <Option value="Development">Development</Option>
-                <Option value="Sales">Sales</Option>
-                <Option value="Marketing">Marketing</Option>
-                <Option value="Design">Design</Option>
-             </Select>
-          </Form.Item>
-           <Form.Item name="role" label="Role" rules={[{ required: true }]}>
+           <Form.Item name="name" label="名前" rules={[{ required: true }]}>
              <Input />
            </Form.Item>
-          <Form.Item label="Trait Analysis (PDF Upload)">
-            <Upload>
-              <Button icon={<UploadOutlined />}>Upload Evaluation PDF</Button>
-            </Upload>
-            <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
-              * AI will analyze the PDF and extract traits automatically.
-            </div>
-          </Form.Item>
+           <Form.Item name="department" label="部署" rules={[{ required: true }]}>
+              <Select>
+                 <Option value="Development">開発</Option>
+                 <Option value="Sales">営業</Option>
+                 <Option value="Marketing">マーケティング</Option>
+                 <Option value="Design">デザイン</Option>
+              </Select>
+           </Form.Item>
+            <Form.Item name="role" label="役職" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+           <Form.Item label="特性分析 (PDFアップロード)">
+             <Upload>
+               <Button icon={<UploadOutlined />}>評価PDFをアップロード</Button>
+             </Upload>
+             <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+               * AIがPDFを分析し、特性を自動抽出します。
+             </div>
+           </Form.Item>
         </Form>
       </Modal>
 
       <Drawer
-        title="Subordinate Details"
+         title="部下詳細"
         placement="right"
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
@@ -163,14 +163,14 @@ export default function CRMPage() {
         size="large"
       >
         {selectedSub && (
-          <Descriptions title="User Info" bordered column={1} layout="vertical">
-            <Descriptions.Item label="Name">{selectedSub.name}</Descriptions.Item>
-            <Descriptions.Item label="Department">{selectedSub.department}</Descriptions.Item>
-             <Descriptions.Item label="Role">{selectedSub.role}</Descriptions.Item>
-            <Descriptions.Item label="Detected Traits">
-                {selectedSub.traits.length > 0 ? selectedSub.traits.map(t => <Tag key={t}>{t}</Tag>) : "No traits analyzed yet."}
-            </Descriptions.Item>
-            <Descriptions.Item label="Analysis Data">
+           <Descriptions title="ユーザー情報" bordered column={1} layout="vertical">
+             <Descriptions.Item label="名前">{selectedSub.name}</Descriptions.Item>
+             <Descriptions.Item label="部署">{selectedSub.department}</Descriptions.Item>
+              <Descriptions.Item label="役職">{selectedSub.role}</Descriptions.Item>
+             <Descriptions.Item label="検出された特性">
+                 {selectedSub.traits.length > 0 ? selectedSub.traits.map(t => <Tag key={t}>{t}</Tag>) : "まだ特性が分析されていません。"}
+             </Descriptions.Item>
+             <Descriptions.Item label="分析データ">
                 <Spin spinning={uploading}>
                   <Upload
                     accept=".pdf"
@@ -183,12 +183,12 @@ export default function CRMPage() {
                     }}
                     disabled={uploading}
                   >
-                    <Button type="dashed" icon={<FilePdfOutlined />}>
-                      {uploading ? 'Analyzing...' : 'Upload & Analyze PDF'}
-                    </Button>
+                     <Button type="dashed" icon={<FilePdfOutlined />}>
+                       {uploading ? '分析中...' : 'PDFをアップロードして分析'}
+                     </Button>
                   </Upload>
                   <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
-                    Upload a PDF evaluation report. AI will extract personality traits.
+                     PDF評価レポートをアップロードしてください。AIが性格特性を抽出します。
                   </div>
                 </Spin>
             </Descriptions.Item>

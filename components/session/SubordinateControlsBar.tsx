@@ -52,7 +52,7 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
         onClick={() => setIsMindMapMode(!isMindMapMode)}
         data-testid="mindmap-toggle-button"
       >
-        {isMindMapMode ? 'Switch to Video' : 'Switch to MindMap'}
+         {isMindMapMode ? 'ビデオに切り替え' : 'マインドマップに切り替え'}
       </Button>
 
       {onLeaveSession && (
@@ -63,7 +63,7 @@ const SubordinateControlsBar: React.FC<SubordinateControlsBarProps> = ({
           onClick={onLeaveSession}
           data-testid="leave-session-button"
         >
-          Leave Session
+           セッション退出
         </Button>
       )}
     </Flex>

@@ -37,13 +37,13 @@ const SessionHeader: React.FC<SessionHeaderProps> = ({
       <Flex justify="space-between" align="center">
         <Space size={16} align="center">
           <Title level={4} style={{ margin: 0 }}>
-            {isSubordinateView ? '1on1 Session (Participant)' : `1on1 with ${subordinate?.name || 'Subordinate'}`}
+             {isSubordinateView ? '1on1セッション (参加者)' : `${subordinate?.name || '部下'}との1on1`}
           </Title>
           <Tag color="blue">{sessionData?.theme}</Tag>
           <Tag color={sessionData?.mode === 'web' ? 'cyan' : 'green'}>
-            {sessionData?.mode === 'web' ? 'Web Mode' : 'Face-to-Face'}
+             {sessionData?.mode === 'web' ? 'Web会議モード' : '対面モード'}
           </Tag>
-          {isSubordinateView && <Tag color="orange">Subordinate View</Tag>}
+           {isSubordinateView && <Tag color="orange">部下ビュー</Tag>}
         </Space>
         <Space size={16} align="center">
            {!isSubordinateView && onCopyInviteLink && sessionData?.mode !== 'face-to-face' && (
@@ -53,7 +53,7 @@ const SessionHeader: React.FC<SessionHeaderProps> = ({
                icon={<LinkOutlined />}
                onClick={onCopyInviteLink}
              >
-               Copy Invite Link
+                招待リンクをコピー
              </Button>
            )}
           <Text type="secondary">{new Date().toDateString()}</Text>

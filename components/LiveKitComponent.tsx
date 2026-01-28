@@ -44,19 +44,19 @@ export default function LiveKitComponent({ roomName, username, mode = 'web', onR
         setToken(data.token);
       } catch (e) {
         console.error(e);
-        setError('Failed to fetch token');
+        setError('トークンの取得に失敗しました');
       }
     })();
   }, [roomName, username]);
 
   if (error) {
-    return <Alert message="Error" description={error} type="error" showIcon />;
+    return <Alert message="エラー" description={error} type="error" showIcon />;
   }
 
   if (token === '') {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <Spin>Connecting to LiveKit...</Spin>
+         <Spin>LiveKitに接続中...</Spin>
       </div>
     );
   }
@@ -65,10 +65,10 @@ export default function LiveKitComponent({ roomName, username, mode = 'web', onR
   if (token === 'mock-token-for-demo-purposes') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: '#111', color: '#fff' }}>
-        <h2>LiveKit Config Missing</h2>
-        <p>Please configure LIVEKIT_API_KEY and LIVEKIT_API_SECRET in .env.local to enable real video calls.</p>
-        <div style={{ padding: 20, border: '1px dashed #666', borderRadius: 8, marginTop: 20 }}>
-          <p><strong>Mock Mode Active:</strong></p>
+         <h2>LiveKit設定がありません</h2>
+         <p>.env.localファイルでLIVEKIT_API_KEYとLIVEKIT_API_SECRETを設定して、実際のビデオ通話を有効にしてください。</p>
+         <div style={{ padding: 20, border: '1px dashed #666', borderRadius: 8, marginTop: 20 }}>
+           <p><strong>モックモード有効:</strong></p>
           <p>Room: {roomName}</p>
           <p>User: {username}</p>
         </div>

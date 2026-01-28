@@ -28,7 +28,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onTranscript: _onTranscript,
   onRemoteAudioTrack,
-  username = "Manager",
+   username = "マネージャー",
 }) => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
@@ -41,7 +41,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
         />
       ) : (
         <div style={{ color: '#fff', textAlign: 'center', marginTop: 100 }}>
-          Initializing Session...
+           セッションを初期化中...
         </div>
       )}
     </div>
