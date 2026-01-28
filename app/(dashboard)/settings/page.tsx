@@ -90,11 +90,11 @@ export default function SettingsPage() {
       if (error) throw error;
       
       // OAuth flow will redirect, so we don't need to update state here
-      message.info('Redirecting to Google for authorization...');
+       message.info('Google認証にリダイレクト中...');
     } catch (error: unknown) {
       console.error('Google OAuth error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      message.error(`Failed to connect Google Calendar: ${errorMessage}`);
+       message.error(`Googleカレンダーの連携に失敗しました: ${errorMessage}`);
       setGoogleLoading(false);
     }
   };
@@ -224,7 +224,7 @@ export default function SettingsPage() {
   if (checkingAuth) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-        <Spin>Checking authentication status...</Spin>
+         <Spin>認証ステータスを確認中...</Spin>
       </div>
     );
   }
@@ -262,7 +262,7 @@ export default function SettingsPage() {
         </Dropdown>
       </div>
       
-       <Card title="Integrations" variant="borderless">
+        <Card title="連携設定" variant="borderless">
           <div className="ant-list ant-list-split">
             {integrations.map((item) => (
               <div key={item.id} className="ant-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>

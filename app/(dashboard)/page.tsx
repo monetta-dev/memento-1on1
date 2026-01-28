@@ -83,7 +83,7 @@ export default function Dashboard() {
 
   const columns = [
     {
-      title: 'Subordinate',
+       title: '部下',
       dataIndex: 'subordinateId',
       key: 'subordinateId',
       filters: subordinates.map(s => ({ text: s.name, value: s.id })),
@@ -91,53 +91,53 @@ export default function Dashboard() {
       render: (id: string) => subordinates.find((s) => s.id === id)?.name || 'Unknown',
     },
     {
-      title: 'Date',
+       title: '日付',
       dataIndex: 'date',
       key: 'date',
       sorter: (a: Session, b: Session) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       render: (text: string) => new Date(text).toLocaleDateString(),
     },
     {
-      title: 'Mode',
+       title: 'モード',
       dataIndex: 'mode',
       key: 'mode',
-      filters: [
-        { text: 'Web', value: 'web' },
-        { text: 'Face-to-Face', value: 'face-to-face' },
+       filters: [
+        { text: 'Web会議', value: 'web' },
+        { text: '対面', value: 'face-to-face' },
       ],
       onFilter: (value: any, record: Session) => record.mode === value, // eslint-disable-line @typescript-eslint/no-explicit-any
       render: (mode: string) => (
-        mode === 'web' ? <Tag icon={<VideoCameraOutlined />} color="blue">Web</Tag> : <Tag icon={<UserOutlined />} color="green">Face-to-Face</Tag>
+         mode === 'web' ? <Tag icon={<VideoCameraOutlined />} color="blue">Web会議</Tag> : <Tag icon={<UserOutlined />} color="green">対面</Tag>
       ),
     },
     {
-      title: 'Theme',
+       title: 'テーマ',
       dataIndex: 'theme',
       key: 'theme',
       sorter: (a: Session, b: Session) => a.theme.localeCompare(b.theme),
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm }: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
         <div style={{ padding: 8 }}>
-          <Input
-            placeholder="Search theme"
-            value={selectedKeys[0]}
-            onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-            onPressEnter={() => confirm()}
-            style={{ width: 188, marginBottom: 8, display: 'block' }}
-          />
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
+           <Input
+             placeholder="テーマを検索"
+             value={selectedKeys[0]}
+             onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+             onPressEnter={() => confirm()}
+             style={{ width: 188, marginBottom: 8, display: 'block' }}
+           />
+           <Button
+             type="primary"
+             onClick={() => confirm()}
+             size="small"
+             style={{ width: 90 }}
+           >
+             検索
+           </Button>
         </div>
       ),
       onFilter: (value: any, record: Session) => record.theme.toLowerCase().includes(value.toLowerCase()), // eslint-disable-line @typescript-eslint/no-explicit-any
     },
     {
-      title: 'Status',
+       title: 'ステータス',
       dataIndex: 'status',
       key: 'status',
       sorter: (a: Session, b: Session) => a.status.localeCompare(b.status),
@@ -156,13 +156,13 @@ export default function Dashboard() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
+         <Title level={2} style={{ margin: 0 }}>ダッシュボード</Title>
         <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleStart}>
-          Start 1on1
+           1on1を開始
         </Button>
       </div>
 
-       <Card title="Recent Sessions" styles={{ body: { padding: 0 } }}>
+        <Card title="最近のセッション" styles={{ body: { padding: 0 } }}>
         <Table 
           dataSource={sessions} 
           columns={columns} 
@@ -181,19 +181,19 @@ export default function Dashboard() {
       </Card>
 
       <Modal
-        title="Start New 1on1 Session"
+         title="新しい1on1セッションを開始"
         open={isModalVisible}
         onOk={handleOk}
         onCancel={() => { setIsModalVisible(false); setSelectedTheme(''); }}
-        okText="Start Session"
+         okText="セッション開始"
       >
          <Form form={form} layout="vertical" initialValues={{ mode: 'web', sessionDateTime: dayjs().add(1, 'hour'), duration: 1 }}>
           <Form.Item
             name="subordinateId"
-            label="Subordinate"
-            rules={[{ required: true, message: 'Please select a subordinate' }]}
+             label="部下"
+             rules={[{ required: true, message: '部下を選択してください' }]}
           >
-            <Select placeholder="Select a subordinate" id="subordinateId">
+             <Select placeholder="部下を選択" id="subordinateId">
               {subordinates.map((sub) => (
                 <Option key={sub.id} value={sub.id}>{sub.name}</Option>
               ))}
@@ -202,57 +202,57 @@ export default function Dashboard() {
 
           <Form.Item
             name="mode"
-            label="Mode"
+             label="モード"
             rules={[{ required: true }]}
           >
             <Radio.Group>
-              <Radio.Button value="web"><VideoCameraOutlined /> Web Conference</Radio.Button>
-              <Radio.Button value="face-to-face"><UserOutlined /> Face-to-Face</Radio.Button>
+               <Radio.Button value="web"><VideoCameraOutlined /> Web会議</Radio.Button>
+               <Radio.Button value="face-to-face"><UserOutlined /> 対面</Radio.Button>
             </Radio.Group>
           </Form.Item>
 
            <Form.Item
              name="theme"
-             label="Theme / Topic"
-             rules={[{ required: true, message: 'Please select a theme' }]}
+              label="テーマ / トピック"
+              rules={[{ required: true, message: 'テーマを選択してください' }]}
            >
              <Select
-               placeholder="Select a theme"
+                placeholder="テーマを選択"
                onChange={(value) => setSelectedTheme(value)}
                options={THEME_OPTIONS}
              />
            </Form.Item>
            
            {selectedTheme === OTHER_THEME_VALUE && (
-             <Form.Item
-               name="customTheme"
-               label="Custom Theme"
-               rules={[{ required: true, message: 'Please enter a custom theme' }]}
-             >
-               <Input placeholder="Enter your custom theme" />
-             </Form.Item>
+              <Form.Item
+                name="customTheme"
+                label="カスタムテーマ"
+                rules={[{ required: true, message: 'カスタムテーマを入力してください' }]}
+              >
+                <Input placeholder="カスタムテーマを入力" />
+              </Form.Item>
            )}
 
-          <Form.Item
-            name="sessionDateTime"
-            label="Session Date & Time"
-            rules={[{ required: true, message: 'Please select date and time' }]}
-          >
-            <DatePicker
-              showTime
-              format="YYYY-MM-DD HH:mm"
-              style={{ width: '100%' }}
-              placeholder="Select date and time"
-            />
-          </Form.Item>
+           <Form.Item
+             name="sessionDateTime"
+             label="セッション日時"
+             rules={[{ required: true, message: '日時を選択してください' }]}
+           >
+             <DatePicker
+               showTime
+               format="YYYY-MM-DD HH:mm"
+               style={{ width: '100%' }}
+               placeholder="日時を選択"
+             />
+           </Form.Item>
 
-          <Form.Item
-            name="duration"
-            label="Duration (hours)"
-            initialValue={1}
-          >
-            <Input type="number" min={0.5} max={8} step={0.5} style={{ width: '100%' }} />
-          </Form.Item>
+           <Form.Item
+             name="duration"
+             label="所要時間 (時間)"
+             initialValue={1}
+           >
+             <Input type="number" min={0.5} max={8} step={0.5} style={{ width: '100%' }} />
+           </Form.Item>
         </Form>
       </Modal>
     </div>

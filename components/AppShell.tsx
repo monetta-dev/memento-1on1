@@ -33,13 +33,13 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
     {
       key: 'dashboard',
       icon: <VideoCameraOutlined />,
-      label: 'Dashboard (1on1)',
+      label: 'ダッシュボード',
       onClick: () => router.push('/'),
     },
     {
       key: 'crm',
       icon: <TeamOutlined />,
-      label: '部下管理 (CRM)',
+      label: '部下管理',
       onClick: () => router.push('/crm'),
     },
     {
@@ -51,7 +51,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
     {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '設定 (Integrations)',
+      label: '設定',
       onClick: () => router.push('/settings'),
     },
   ];
@@ -92,7 +92,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontWeight: 500 }}>Manager User</span>
+             <span style={{ fontWeight: 500 }}>管理者</span>
             <Avatar icon={<UserOutlined />} />
           </div>
         </Header>
