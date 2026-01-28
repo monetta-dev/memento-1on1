@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
     const { userId, reconnect = false } = await req.json();
-    console.log('LINE connect request headers:', Object.fromEntries(req.headers.entries()));
+    console.log('LINE connect request headers:', req.headers);
     console.log('LINE connect request body userId:', userId);
     
     if (!userId) {
@@ -27,10 +27,13 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    // シンプルな実装: reconnectパラメータをそのまま使用
+    const botPromptValue = reconnect ? 'aggressive' : 'normal';
+    
     // セキュアなstateパラメータを生成（CSRF保護 + bot_prompt情報を含む）
     const stateBase = crypto.randomBytes(32).toString('hex');
     // stateにbot_prompt情報をエンコード: {random}::{bot_prompt_value}
-    const state = `${stateBase}::${reconnect ? 'aggressive' : 'normal'}`;
+    const state = `${stateBase}::${botPromptValue}`;
     
     // stateをcookieに保存（コールバックで検証するため）
     const cookieStore = await cookies();
@@ -54,7 +57,6 @@ export async function POST(req: NextRequest) {
     // LINE OAuth URLを構築
     const lineOAuthUrl = new URL('https://access.line.me/oauth2/v2.1/authorize');
     
-    const botPromptValue = reconnect ? 'aggressive' : 'normal';
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: channelId,
@@ -66,22 +68,17 @@ export async function POST(req: NextRequest) {
 
     lineOAuthUrl.search = params.toString();
     
-    // 詳細な診断ログ
-    console.log('🔍 LINE Connect Debug - Start');
+    // シンプルな診断ログ
+    console.log('🔍 LINE Connect - Simple Implementation');
     console.log('🔍 User:', userId);
     console.log('🔍 reconnect parameter:', reconnect);
     console.log('🔍 bot_prompt value:', botPromptValue);
-    console.log('🔍 Channel ID:', channelId ? `[SET] (length: ${channelId.length})` : '[NOT SET]');
+    console.log('🔍 Channel ID:', channelId ? `[SET]` : '[NOT SET]');
     console.log('🔍 Redirect URI:', redirectUri);
-    console.log('🔍 State generated (first 8 chars):', state.substring(0, 8), '...');
-    
-    // OAuth URLのパラメータを解析してログ出力（機密情報マスク）
-    const oauthUrlString = lineOAuthUrl.toString();
-    console.log('🔍 Generated OAuth URL:', oauthUrlString);
     
     // URLパラメータを解析して確認
     try {
-      const urlObj = new URL(oauthUrlString);
+      const urlObj = new URL(lineOAuthUrl.toString());
       const paramsObj = Object.fromEntries(urlObj.searchParams.entries());
       console.log('🔍 OAuth URL Parameters:', {
         response_type: paramsObj.response_type,
@@ -89,13 +86,11 @@ export async function POST(req: NextRequest) {
         redirect_uri: paramsObj.redirect_uri,
         state: paramsObj.state ? '[SET]' : '[MISSING]',
         scope: paramsObj.scope,
-        bot_prompt: paramsObj.bot_prompt || '[MISSING - THIS IS A PROBLEM]'
+        bot_prompt: paramsObj.bot_prompt || '[MISSING]'
       });
     } catch (error) {
       console.error('❌ Failed to parse OAuth URL:', error);
     }
-    
-    console.log('🔍 LINE Connect Debug - End');
     
     return NextResponse.json({
       success: true,

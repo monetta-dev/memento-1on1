@@ -48,29 +48,31 @@ async function checkLineSettings() {
       continue;
     }
     
-    console.log(`Found ${lineNotifications.length} LINE notification settings:`);
-    lineNotifications.forEach((setting, index) => {
-      console.log(`\nSetting ${index + 1}:`);
-      console.log(`  ID: ${setting.id}`);
-      console.log(`  LINE User ID: ${setting.line_user_id}`);
-      console.log(`  LINE Display Name: ${setting.line_display_name}`);
-      console.log(`  Enabled: ${setting.enabled}`);
-      console.log(`  Notification Types: ${JSON.stringify(setting.notification_types)}`);
-      console.log(`  Created: ${setting.created_at}`);
-      console.log(`  Updated: ${setting.updated_at}`);
-      
-      // Check if 'reminder' is in notification_types
-      const hasReminder = setting.notification_types && 
-                         Array.isArray(setting.notification_types) &&
-                         setting.notification_types.includes('reminder');
-      console.log(`  Has 'reminder' type: ${hasReminder}`);
-      
-      // Check if this would match the function query
-      const wouldMatch = setting.enabled && 
-                        hasReminder && 
-                        setting.line_user_id;
-      console.log(`  Would match function query: ${wouldMatch}`);
-    });
+     console.log(`Found ${lineNotifications.length} LINE notification settings:`);
+     lineNotifications.forEach((setting, index) => {
+       console.log(`\nSetting ${index + 1}:`);
+       console.log(`  ID: ${setting.id}`);
+       console.log(`  LINE User ID: ${setting.line_user_id}`);
+       console.log(`  LINE Display Name: ${setting.line_display_name}`);
+       console.log(`  Enabled: ${setting.enabled}`);
+       console.log(`  Is Friend: ${setting.is_friend}`);
+       console.log(`  Friend Status Checked At: ${setting.friend_status_checked_at}`);
+       console.log(`  Notification Types: ${JSON.stringify(setting.notification_types)}`);
+       console.log(`  Created: ${setting.created_at}`);
+       console.log(`  Updated: ${setting.updated_at}`);
+       
+       // Check if 'reminder' is in notification_types
+       const hasReminder = setting.notification_types && 
+                          Array.isArray(setting.notification_types) &&
+                          setting.notification_types.includes('reminder');
+       console.log(`  Has 'reminder' type: ${hasReminder}`);
+       
+       // Check if this would match the function query
+       const wouldMatch = setting.enabled && 
+                         hasReminder && 
+                         setting.line_user_id;
+       console.log(`  Would match function query: ${wouldMatch}`);
+     });
   }
   
   // Also check the exact user ID from test sessions

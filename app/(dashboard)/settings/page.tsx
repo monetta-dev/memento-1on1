@@ -7,6 +7,7 @@ import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, Lo
 import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 
 type LineSettings = {
   id: string;
@@ -160,7 +161,81 @@ export default function SettingsPage() {
     }
   };
 
+  const refreshLineStatus = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      console.log('🔍 Refreshing LINE connection status for user:', session.user.id);
+      
+      const { data: lineData, error: lineError } = await supabase
+        .from('line_notifications')
+        .select('id, line_user_id, enabled, line_display_name, is_friend, created_at, updated_at')
+        .eq('user_id', session.user.id)
+        .eq('enabled', true)
+        .not('line_user_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      console.log('🔍 LINE refresh result:', {
+        hasData: !!lineData,
+        error: lineError,
+        is_friend: lineData?.is_friend
+      });
+      
+      if (!lineError && lineData) {
+        setLineConnected(true);
+        setLineSettings(lineData);
+        console.log('✅ LINE status refreshed:', lineData.line_display_name, 'is_friend:', lineData.is_friend);
+      } else {
+        setLineConnected(false);
+        console.log('⚠️ LINE not connected or error:', lineError?.message || 'No data found');
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing LINE status:', error);
+    }
+  };
+
+  const handleCheckFriendStatus = async () => {
+    setLineLoading(true);
+    try {
+      console.log('🔍 Checking friend status...');
+      message.info('友達状態を確認中...');
+      
+      const response = await fetch('/api/line/check-friend-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      const result = await response.json();
+      console.log('🔍 Check friend status result:', result);
+      
+      if (response.ok && result.success) {
+        message.success(result.message);
+        // LINE設定を再取得
+        await refreshLineStatus();
+      } else {
+        throw new Error(result.error || result.details || '友達状態の確認に失敗しました');
+      }
+    } catch (error: unknown) {
+      console.error('❌ Friend status check error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      message.error(`友達状態の確認に失敗しました: ${errorMessage}`);
+    } finally {
+      setLineLoading(false);
+    }
+  };
+
   const handleLineConnect = async (reconnect = false) => {
+    // 既に連携済みでis_friend=falseの場合、再連携は不要（QRコード表示で十分）
+    if (lineConnected && lineSettings?.is_friend === false) {
+      console.log('🔍 User has is_friend=false, showing QR code instead of reconnecting');
+      message.info('既にLINE連携済みです。友だち追加にはQRコードをご利用ください。');
+      setLineLoading(false);
+      return;
+    }
+    
     setLineLoading(true);
     try {
       console.log('🔍 LINE Connect Debug - Frontend Start');
@@ -281,14 +356,14 @@ export default function SettingsPage() {
       id: 'line',
       title: t('line'),
       description: lineConnected && lineSettings?.is_friend === false 
-        ? 'LINE連携済みですが、公式アカウントを友だち追加してください'
+        ? 'LINE連携済み（友だち追加が必要）'
         : t('line_description'),
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
       connected: lineConnected,
       loading: lineLoading,
       disabled: false,
-      // is_friend=falseの場合は自動的にreconnect=true（友達追加画面表示）にリダイレクト
-      onConnect: () => handleLineConnect(lineSettings?.is_friend === false),
+      // is_friend=falseの場合はQRコード表示、それ以外は通常の連携フロー
+      onConnect: () => handleLineConnect(false),
       onDisconnect: handleLineDisconnect,
       isGoogleCalendar: false,
     },
@@ -346,23 +421,62 @@ export default function SettingsPage() {
                   <div className="ant-list-item-meta-content">
                     <h4 className="ant-list-item-meta-title" style={{ marginBottom: 4 }}>{item.title}</h4>
                     <div className="ant-list-item-meta-description" style={{ color: 'rgba(0, 0, 0, 0.45)' }}>{item.description}</div>
-                    {item.id === 'line' && lineConnected && lineSettings?.is_friend === false && (
-                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: '#faad14', fontSize: '12px' }}>
-                          ⚠️ 友だち追加が完了していません。メッセージを受信するには追加が必要です。
-                        </span>
-                        <Button
-                          type="link"
-                          size="small"
-                          onClick={() => handleLineConnect(true)}
-                          loading={lineLoading}
-                          disabled={lineLoading}
-                          style={{ padding: 0, height: 'auto' }}
-                        >
-                          友だち追加を完了する
-                        </Button>
-                      </div>
-                    )}
+                     {item.id === 'line' && lineConnected && lineSettings?.is_friend === false && (
+                       <div style={{ marginTop: 8 }}>
+                         <div style={{ color: '#faad14', fontSize: '12px', marginBottom: 8 }}>
+                           ⚠️ 友だち追加が完了していません。メッセージを受信するには追加が必要です。
+                         </div>
+                         <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, padding: 12 }}>
+                           <div style={{ fontWeight: 'bold', marginBottom: 8 }}>友だち追加方法</div>
+                           <ol style={{ margin: 0, paddingLeft: 20, fontSize: '12px' }}>
+                             <li>LINEアプリを開く</li>
+                             <li>友だち追加 → QRコード読み取り</li>
+                             <li>以下のQRコードをスキャン</li>
+                           </ol>
+                            <div style={{ marginTop: 12, textAlign: 'center' }}>
+                              {/* QRコード生成 */}
+                              <div style={{ 
+                                width: 150, 
+                                height: 150, 
+                                margin: '0 auto',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}>
+                                <QRCodeSVG
+                                  value={process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon'}
+                                  size={150}
+                                  level="H"
+                                  includeMargin={false}
+                                  bgColor="#ffffff"
+                                  fgColor="#000000"
+                                />
+                              </div>
+                              <div style={{ marginTop: 8, fontSize: '11px', color: '#666' }}>
+                                ※ QRコードが読み取れない場合は、URLを直接開いてください
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+                              <Button
+                                type="primary"
+                                size="small"
+                                onClick={() => window.open(process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon', '_blank')}
+                              >
+                                LINEで友だち追加
+                              </Button>
+                               <Button
+                                 type="default"
+                                 size="small"
+                                 onClick={handleCheckFriendStatus}
+                                 loading={lineLoading}
+                                 disabled={lineLoading}
+                               >
+                                 状態を更新
+                               </Button>
+                            </div>
+                         </div>
+                       </div>
+                     )}
                   </div>
                 </div>
                  <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>

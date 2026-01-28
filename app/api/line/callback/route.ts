@@ -109,8 +109,6 @@ import { createRouteHandlerClient } from '@/lib/supabase';
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
-    const refreshToken = tokenData.refresh_token;
-    const expiresIn = tokenData.expires_in;
 
     // 2. ユーザープロフィールの取得
     const profileResponse = await fetch('https://api.line.me/v2/profile', {
@@ -199,7 +197,7 @@ import { createRouteHandlerClient } from '@/lib/supabase';
       console.warn('⚠️ No access token available for friendship check');
     }
     
-    // 詳細なisFriend決定ロジック
+    // シンプルなisFriend決定ロジック
     console.log('🔍 isFriend decision logic:', {
       friendshipStatusChanged,
       botPromptFromState,
@@ -209,76 +207,18 @@ import { createRouteHandlerClient } from '@/lib/supabase';
       apiErrorMessage: apiErrorMessage.substring(0, 100)
     });
     
-    // 最終的なisFriendの決定（改善版ロジック - bot_prompt情報を考慮）
+    // シンプルな決定ロジック
     if (friendshipStatusChanged === 'true') {
-      // friendship_status_changedがtrueの場合、友達状態が変更されたとみなす
+      // friendship_status_changedがtrueの場合、友達状態が変更された
       isFriend = true;
       console.log('✅ Setting isFriend=true based on friendship_status_changed=true');
-    } else if (friendshipStatusChanged === 'false') {
-      // friendship_status_changedがfalseの場合、状態が変更されなかった
-      // 既に友達かどうかは不明だが、少なくとも今回のフローでは友達追加されていない
-      console.log('⚠️ friendship_status_changed=false - friend status did not change during this flow');
-      
-      if (apiCheckSuccessful) {
-        // API結果を使用
-        isFriend = apiFriendFlag;
-        console.log('✅ Setting isFriend=', isFriend, 'based on API result (friendship_status_changed=false)');
-      } else {
-        // APIチェック失敗時は現状維持
-        console.log('⚠️ API check failed with friendship_status_changed=false - keeping existing isFriend value');
-      }
-    } else if (friendshipStatusChanged === null) {
-      // friendship_status_changedがnullの場合（同意画面未表示/スキップ）
-      console.log('⚠️ friendship_status_changed is null - possible issues:');
-      console.log('   - bot_prompt parameter not included in OAuth request');
-      console.log('   - consent screen not shown (already connected user)');
-      console.log('   - LINE configuration issue (channel not linked with official account)');
-      console.log('   - Current bot_prompt from state:', botPromptFromState);
-      
-      if (botPromptFromState === 'aggressive') {
-        // bot_prompt=aggressiveの場合、友達追加画面が表示されたはず
-        // ただし同意画面がスキップされた可能性がある
-        console.log('🔍 bot_prompt=aggressive detected in state');
-        
-        if (apiCheckSuccessful) {
-          // API結果を使用（友達追加画面が表示されたが、ユーザーが追加しなかった可能性）
-          isFriend = apiFriendFlag;
-          console.log('✅ Using API result (isFriend=', isFriend, ') for bot_prompt=aggressive with friendship_status_changed=null');
-        } else {
-          // APIチェック失敗時は現状維持
-          console.log('⚠️ API check failed with bot_prompt=aggressive - keeping existing isFriend value');
-        }
-      } else if (botPromptFromState === 'normal') {
-        // bot_prompt=normalの場合、同意画面にオプションが表示されたが追加されなかった可能性
-        console.log('🔍 bot_prompt=normal detected in state');
-        
-        if (apiCheckSuccessful) {
-          // API結果を使用
-          isFriend = apiFriendFlag;
-          console.log('✅ Using API result (isFriend=', isFriend, ') for bot_prompt=normal with friendship_status_changed=null');
-        } else {
-          // APIチェック失敗時は現状維持
-          console.log('⚠️ API check failed with bot_prompt=normal - keeping existing isFriend value');
-        }
-      } else {
-        // bot_prompt情報なし
-        console.log('🔍 No bot_prompt information in state');
-        
-        if (apiCheckSuccessful) {
-          // API結果を使用
-          isFriend = apiFriendFlag;
-          console.log('✅ Using API result (isFriend=', isFriend, ') with no bot_prompt info');
-        } else {
-          // APIチェック失敗時は現状維持
-          console.log('⚠️ Both friendship_status_changed=null and API check failed - keeping existing isFriend value');
-        }
-      }
+    } else if (apiCheckSuccessful) {
+      // APIチェックが成功した場合、その結果を使用
+      isFriend = apiFriendFlag;
+      console.log('✅ Setting isFriend=', isFriend, 'based on API result');
     } else {
-      // その他のケース（通常はapiCheckSuccessful=trueの場合）
-      if (apiCheckSuccessful) {
-        isFriend = apiFriendFlag;
-        console.log('✅ Setting isFriend=', isFriend, 'based on API result (default case)');
-      }
+      // それ以外の場合は既存の値を維持（後で調整）
+      console.log('⚠️ Using existing is_friend value (no clear indicator)');
     }
     
     console.log('🔍 Final isFriend value:', isFriend);
@@ -343,7 +283,7 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     console.log('🔍 Final isFriend value after adjustment:', isFriend);
 
     // line_notificationsテーブルに保存または更新
-    const { data: _data, error: dbError } = await supabase
+    const { data: _, error: dbError } = await supabase
       .from('line_notifications')
       .upsert({
         user_id: authUserId,
