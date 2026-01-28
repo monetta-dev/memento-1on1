@@ -42,17 +42,12 @@ export default function SessionPage() {
   const fetchSessions = useStore(state => state.fetchSessions);
   const fetchSubordinates = useStore(state => state.fetchSubordinates);
 
-  // Session State
-  const [messages, setMessages] = useState<{ speaker: string, text: string, time: string }[]>([]);
-  const [realTimeAdvice, setRealTimeAdvice] = useState<string>('会話を待っています...');
-  const [isMindMapMode, setIsMindMapMode] = useState(false);
-  // Face-to-Face mode state
-  const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [sessionStartTime] = useState<Date>(new Date());
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const [timerPaused, setTimerPaused] = useState<boolean>(false);
-  const sessionDuration = 3600; // 60 minutes in seconds
+   // Session State
+   const [messages, setMessages] = useState<{ speaker: string, text: string, time: string }[]>([]);
+   const [realTimeAdvice, setRealTimeAdvice] = useState<string>('会話を待っています...');
+   const [isMindMapMode, setIsMindMapMode] = useState(false);
+   // Face-to-Face mode state
+   const [notes, setNotes] = useState<Note[]>([]);
   
   const [micOn, setMicOn] = useState(true); // Re-introduce mic control for transcription handling
   const isAnalyzingRef = useRef<boolean>(false);
@@ -94,24 +89,7 @@ export default function SessionPage() {
     setNotes(prev => [...prev, newNote]);
   }, []);
 
-  const handleUpdateAgenda = useCallback((items: AgendaItem[]) => {
-    setAgendaItems(items);
-  }, []);
 
-  const handleToggleTimer = useCallback((paused: boolean) => {
-    setTimerPaused(paused);
-  }, []);
-
-  // Timer effect for face-to-face mode
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (!timerPaused) {
-      interval = setInterval(() => {
-        setElapsedTime(Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 1000));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timerPaused, sessionStartTime]);
 
   // Track if we've fetched for this session ID
   const hasFetchedRef = useRef<string | null>(null);
@@ -140,17 +118,12 @@ export default function SessionPage() {
     return data;
   }, [sessions, params.id]);
 
-  // Initialize agendaItems and notes from session data when sessionData changes
-  useEffect(() => {
-    if (sessionData) {
-      if (sessionData.agendaItems && agendaItems.length === 0) {
-        setAgendaItems(sessionData.agendaItems);
-      }
-      if (sessionData.notes && notes.length === 0) {
-        setNotes(sessionData.notes);
-      }
-    }
-  }, [sessionData, agendaItems.length, notes.length]);
+   // Initialize notes from session data when sessionData changes
+   useEffect(() => {
+     if (sessionData && sessionData.notes && notes.length === 0) {
+       setNotes(sessionData.notes);
+     }
+   }, [sessionData, notes.length]);
 
   const subordinate = useMemo(() => {
     if (!sessionData) {
@@ -300,30 +273,7 @@ export default function SessionPage() {
     };
   }, [nodes, edges, sessionData, updateSession]);
 
-  // Auto-save agenda items
-  useEffect(() => {
-    if (agendaSaveTimeoutRef.current) {
-      clearTimeout(agendaSaveTimeoutRef.current);
-    }
 
-    agendaSaveTimeoutRef.current = setTimeout(async () => {
-      if (!sessionData || agendaItems.length === 0) return;
-      
-      try {
-        await updateSession(sessionData.id, {
-          agendaItems
-        });
-      } catch (error) {
-        console.error('Failed to auto-save agenda items:', error);
-      }
-    }, 3000); // 3 second debounce
-
-    return () => {
-      if (agendaSaveTimeoutRef.current) {
-        clearTimeout(agendaSaveTimeoutRef.current);
-      }
-    };
-  }, [agendaItems, sessionData, updateSession]);
 
   // Auto-save notes
   useEffect(() => {
@@ -412,13 +362,12 @@ export default function SessionPage() {
              status: 'completed',
              transcript: transcriptData,
              summary: summary,
-             mindMapData: {
-               nodes: nodes,
-               edges: edges,
-               actionItems: actionItems
-             },
-             agendaItems,
-             notes
+              mindMapData: {
+                nodes: nodes,
+                edges: edges,
+                actionItems: actionItems
+              },
+              notes
             });
             console.log('handleEndSession - updateSession completed successfully');
           } catch (updateError) {
@@ -514,27 +463,19 @@ export default function SessionPage() {
                 </div>
               )}
               
-              {/* Face-to-face mode: Dashboard */}
-              {sessionData.mode === 'face-to-face' && !isMindMapMode && (
-                <div style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  position: 'relative',
-                }}>
-                  <FaceToFaceDashboard
-                    subordinate={subordinate}
-                    sessionData={sessionData}
-                    agendaItems={agendaItems}
-                    notes={notes}
-                    elapsedTime={elapsedTime}
-                    sessionDuration={sessionDuration}
-                    timerPaused={timerPaused}
-                    onAddNote={handleAddNote}
-                    onUpdateAgenda={handleUpdateAgenda}
-                    onToggleTimer={handleToggleTimer}
-                  />
-                </div>
-              )}
+               {/* Face-to-face mode: Dashboard */}
+               {sessionData.mode === 'face-to-face' && !isMindMapMode && (
+                 <div style={{ 
+                   width: '100%', 
+                   height: '100%', 
+                   position: 'relative',
+                 }}>
+                   <FaceToFaceDashboard
+                     notes={notes}
+                     onAddNote={handleAddNote}
+                   />
+                 </div>
+               )}
               
               {/* MindMapPanel overlays when in mindmap mode */}
               {isMindMapMode && (
