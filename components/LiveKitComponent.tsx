@@ -86,7 +86,7 @@ export default function LiveKitComponent({ roomName, username, mode = 'web', onR
 
   return (
     <LiveKitRoom
-      video={mode === 'web' || mode === 'face-to-face'}
+      video={mode === 'web'}
       audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
