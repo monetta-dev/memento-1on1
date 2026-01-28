@@ -72,10 +72,14 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
           
           console.log('Creating live connection...');
           connection = deepgram.listen.live({
-            model: "nova-2",
+            model: "nova-3",
             language: "ja",
             smart_format: true,
             diarize: true,
+            interim_results: true,
+            utterance_end_ms: 1000,
+            vad_events: true,
+            endpointing: 300,
           });
         } catch (err) {
           console.error('Failed to create Deepgram client or connection:', {
@@ -109,9 +113,9 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
           setConnectionState('connected');
 
           // Start local microphone recording
-          navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+          navigator.mediaDevices.getUserMedia({ audio: { sampleRate: { ideal: 16000 } } }).then((stream) => {
             if (!isActive) return;
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm; codecs=opus' });
             mediaRecorderRef.current = mediaRecorder;
 
             mediaRecorder.addEventListener('dataavailable', (event) => {
@@ -119,7 +123,7 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
                 connection.send(event.data);
               }
             });
-            mediaRecorder.start(250); // Send chunk every 250ms
+            mediaRecorder.start(80); // Send chunk every 80ms (Deepgram recommended)
 
             // Remote audio stream will be handled by the separate useEffect
             // when connection state becomes 'connected'
@@ -249,7 +253,7 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
       remoteMediaRecorderRef.current = null;
     }
 
-    const remoteMediaRecorder = new MediaRecorder(remoteAudioStream, { mimeType: 'audio/webm' });
+    const remoteMediaRecorder = new MediaRecorder(remoteAudioStream, { mimeType: 'audio/webm; codecs=opus' });
     remoteMediaRecorderRef.current = remoteMediaRecorder;
 
     remoteMediaRecorder.addEventListener('dataavailable', (event) => {
@@ -258,7 +262,7 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
       }
     });
 
-    remoteMediaRecorder.start(250);
+    remoteMediaRecorder.start(80); // Deepgram recommended chunk size
 
     return () => {
       if (remoteMediaRecorderRef.current) {
