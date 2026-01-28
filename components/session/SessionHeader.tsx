@@ -46,16 +46,16 @@ const SessionHeader: React.FC<SessionHeaderProps> = ({
           {isSubordinateView && <Tag color="orange">Subordinate View</Tag>}
         </Space>
         <Space size={16} align="center">
-          {!isSubordinateView && onCopyInviteLink && (
-            <Button 
-              type="default" 
-              size="small" 
-              icon={<LinkOutlined />}
-              onClick={onCopyInviteLink}
-            >
-              Copy Invite Link
-            </Button>
-          )}
+           {!isSubordinateView && onCopyInviteLink && sessionData?.mode !== 'face-to-face' && (
+             <Button 
+               type="default" 
+               size="small" 
+               icon={<LinkOutlined />}
+               onClick={onCopyInviteLink}
+             >
+               Copy Invite Link
+             </Button>
+           )}
           <Text type="secondary">{new Date().toDateString()}</Text>
         </Space>
       </Flex>
