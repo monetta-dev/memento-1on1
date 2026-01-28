@@ -10,6 +10,7 @@ import { useStore, type AgendaItem, type Note } from '@/store/useStore';
 
 import SessionHeader from '@/components/session/SessionHeader';
 import VideoPanel from '@/components/session/VideoPanel';
+import TranscriptionHandler from '@/components/TranscriptionHandler';
 import MindMapPanel from '@/components/session/MindMapPanel';
 import FaceToFaceDashboard from '@/components/session/FaceToFaceDashboard';
 import ControlsBar from '@/components/session/ControlsBar';
@@ -494,59 +495,31 @@ export default function SessionPage() {
           display: 'flex', 
           flexDirection: 'column' 
         }}>
-           <div style={{ flex: 1, position: 'relative' }}>
-             {/* VideoPanel is always rendered to maintain LiveKit connection and transcription */}
-             <div style={{ 
-               width: '100%', 
-               height: '100%', 
-               position: 'relative',
-               display: (isMindMapMode || sessionData.mode === 'face-to-face') ? 'none' : 'block'
-             }}>
-               <VideoPanel
-                 sessionData={sessionData}
-                 micOn={micOn}
-                 remoteAudioStream={remoteAudioStream}
-                 onTranscript={handleTranscript}
-                 onRemoteAudioTrack={handleRemoteAudioTrack}
-                 username="Manager"
-               />
-             </div>
-             
-             {/* MindMapPanel overlays when in mindmap mode */}
-             {isMindMapMode && (
-               <div style={{ 
-                 position: 'absolute', 
-                 top: 0, 
-                 left: 0, 
-                 width: '100%', 
-                 height: '100%', 
-                 zIndex: 10,
-                 background: '#fff'
-               }}>
-                 <MindMapPanel
-                   nodes={nodes}
-                   edges={edges}
-                   onNodesChange={onNodesChange}
-                   onEdgesChange={onEdgesChange}
-                   onConnect={onConnect}
-                   onNodeDoubleClick={onNodeDoubleClick}
-                   handleAddNode={handleAddNode}
-                 />
-               </div>
-             )}
-
-              {/* FaceToFaceDashboard for in-person sessions */}
-              {!isMindMapMode && sessionData.mode === 'face-to-face' && (
+            <div style={{ flex: 1, position: 'relative' }}>
+              {/* Web mode: VideoPanel with LiveKit */}
+              {sessionData.mode === 'web' && !isMindMapMode && (
                 <div style={{ 
-                  position: 'absolute', 
-                  top: 0, 
-                  left: 0, 
                   width: '100%', 
-                  height: 'calc(100% - 60px)', // Reserve space for ControlsBar
-                  zIndex: 1,
-                  background: '#fff',
-                  padding: '24px',
-                  overflow: 'auto'
+                  height: '100%', 
+                  position: 'relative',
+                }}>
+                  <VideoPanel
+                    sessionData={sessionData}
+                    micOn={micOn}
+                    remoteAudioStream={remoteAudioStream}
+                    onTranscript={handleTranscript}
+                    onRemoteAudioTrack={handleRemoteAudioTrack}
+                    username="Manager"
+                  />
+                </div>
+              )}
+              
+              {/* Face-to-face mode: Dashboard */}
+              {sessionData.mode === 'face-to-face' && !isMindMapMode && (
+                <div style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  position: 'relative',
                 }}>
                   <FaceToFaceDashboard
                     subordinate={subordinate}
@@ -562,7 +535,37 @@ export default function SessionPage() {
                   />
                 </div>
               )}
-           </div>
+              
+              {/* MindMapPanel overlays when in mindmap mode */}
+              {isMindMapMode && (
+                <div style={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  width: '100%', 
+                  height: '100%', 
+                  zIndex: 10,
+                  background: '#fff'
+                }}>
+                  <MindMapPanel
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onNodeDoubleClick={onNodeDoubleClick}
+                    handleAddNode={handleAddNode}
+                  />
+                </div>
+              )}
+              
+              {/* Common TranscriptionHandler for all modes */}
+              <TranscriptionHandler
+                isMicOn={micOn}
+                onTranscript={handleTranscript}
+                remoteAudioStream={sessionData.mode === 'web' ? remoteAudioStream : null}
+              />
+            </div>
 
           <ControlsBar
             micOn={micOn}

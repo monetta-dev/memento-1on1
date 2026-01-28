@@ -2,7 +2,6 @@
 
 import React from 'react';
 import LiveKitComponent from '@/components/LiveKitComponent';
-import TranscriptionHandler from '@/components/TranscriptionHandler';
 
 interface SessionData {
   id: string;
@@ -30,12 +29,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
 }) => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
-      <TranscriptionHandler 
-        isMicOn={micOn} 
-        onTranscript={onTranscript} 
-        remoteAudioStream={remoteAudioStream} 
-      />
-      
       {sessionData ? (
         <LiveKitComponent
           roomName={`session-${sessionData.id}`}
