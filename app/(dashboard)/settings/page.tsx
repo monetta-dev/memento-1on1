@@ -197,10 +197,10 @@ export default function SettingsPage() {
   const integrations = [
     {
       id: 'google-calendar',
-      title: 'Googleカレンダー連携',
-      description: isGoogleAuth 
-        ? 'カレンダー連携が利用可能です'
-        : 'Googleでサインインしてカレンダー連携を有効にしてください',
+       title: t('google_calendar'),
+       description: isGoogleAuth 
+         ? t('calendar_integration_available')
+         : t('sign_in_with_google_to_enable'),
       icon: <CalendarOutlined style={{ color: '#fadb14' }} />,
       connected: googleConnected,
       loading: googleLoading,
@@ -211,8 +211,8 @@ export default function SettingsPage() {
     },
     {
       id: 'line',
-      title: 'LINE連携',
-      description: 'リマインダーや通知をLINEで送信します。',
+       title: t('line'),
+       description: t('line_description'),
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
       connected: lineConnected,
       loading: lineLoading,
@@ -226,7 +226,7 @@ export default function SettingsPage() {
   if (checkingAuth) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-         <Spin>認証ステータスを確認中...</Spin>
+          <Spin>{t('checking_auth_status')}</Spin>
       </div>
     );
   }
@@ -240,14 +240,14 @@ export default function SettingsPage() {
      },
      { 
        key: 'auth_type', 
-       label: isGoogleAuth ? 'Googleアカウントでログイン中' : 'メールアドレスでログイン中',
+        label: isGoogleAuth ? t('logged_in_with_google') : t('logged_in_with_email'),
        icon: isGoogleAuth ? <GoogleOutlined /> : <UserOutlined />,
        disabled: true 
      },
      { type: 'divider' },
      { 
        key: 'logout', 
-       label: 'ログアウト', 
+        label: t('logout'),
        icon: <LogoutOutlined />,
        onClick: handleLogout 
      }
@@ -256,7 +256,7 @@ export default function SettingsPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>設定</Title>
+         <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
           <Button icon={<UserOutlined />}>
             {userEmail.split('@')[0]}
@@ -264,7 +264,7 @@ export default function SettingsPage() {
         </Dropdown>
       </div>
       
-        <Card title="連携設定" variant="borderless">
+         <Card title={t('integrations')} variant="borderless">
           <div className="ant-list ant-list-split">
             {integrations.map((item) => (
               <div key={item.id} className="ant-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
@@ -323,19 +323,19 @@ export default function SettingsPage() {
           </div>
           <div style={{ marginTop: 16, padding: 12, background: isGoogleAuth ? '#f6ffed' : '#fffbe6', border: isGoogleAuth ? '1px solid #b7eb8f' : '1px solid #ffe58f', borderRadius: 4 }}>
              <Typography.Text type="secondary">
-               {isGoogleAuth ? (
-                 <><strong>注意:</strong> Googleカレンダー連携が有効です。次回の1on1セッションをスケジュールできます。</>
-               ) : (
-                 <><strong>制限:</strong> Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。</>
-               )}
+                {isGoogleAuth ? (
+                  <><strong>{t('attention')}:</strong> {t('note_google_calendar_enabled')}</>
+                ) : (
+                  <><strong>{t('restriction')}:</strong> {t('restriction_google_calendar_requires_login')}</>
+                )}
              </Typography.Text>
            </div>
          </Card>
 
-         <Card title="表示設定" variant="borderless" style={{ marginTop: 24 }}>
+          <Card title={t('display_settings')} variant="borderless" style={{ marginTop: 24 }}>
            <div style={{ maxWidth: 400 }}>
              <div style={{ marginBottom: 16 }}>
-               <Typography.Text strong>言語</Typography.Text>
+                <Typography.Text strong>{t('language')}</Typography.Text>
                <Select
                  value={language}
                  onChange={setLanguage}
@@ -345,7 +345,7 @@ export default function SettingsPage() {
                  <Select.Option value="en">English</Select.Option>
                </Select>
                <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                 インターフェースの表示言語を選択します。変更は即時に反映されます。
+                 {t('language_description')}
                </Typography.Text>
              </div>
            </div>
