@@ -272,7 +272,7 @@ const FaceToFaceDashboard: React.FC<FaceToFaceDashboardProps> = ({
         <Col span={24}>
           <Row gutter={[16, 16]}>
             {/* メモエリア */}
-            <Col xs={24} lg={12}>
+            <Col xs={24} lg={24}>
               <Card 
                 title={
                   <Space>
@@ -369,56 +369,7 @@ const FaceToFaceDashboard: React.FC<FaceToFaceDashboardProps> = ({
               </Card>
             </Col>
 
-            {/* アクションアイテムプレビュー */}
-            <Col xs={24} lg={12}>
-              <Card 
-                title={
-                  <Space>
-                    <BulbOutlined />
-                    <span>アクションアイテム（生成中）</span>
-                  </Space>
-                }
-                size="small"
-                style={{ height: '100%' }}
-              >
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  height: 300,
-                  color: '#999'
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <BulbOutlined style={{ fontSize: 24, marginBottom: 16, color: '#d9d9d9' }} />
-                    <Paragraph type="secondary">
-                      セッション終了時にAIが会話を分析し、<br />
-                      アクションアイテムを自動生成します。
-                    </Paragraph>
-                    <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
-                      現在の会話から抽出されたキーワード:<br />
-                      {sessionData?.theme ? `「${sessionData.theme}」` : 'セッションテーマ'}
-                    </Paragraph>
-                  </div>
-                </div>
 
-                <div style={{ 
-                  backgroundColor: '#e6f7ff', 
-                  border: '1px solid #91caff',
-                  borderRadius: 4,
-                  padding: 12,
-                  marginTop: 16
-                }}>
-                  <Text strong style={{ display: 'block', marginBottom: 4 }}>
-                    💡 ヒント
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    ・具体的なアクション（誰が、何を、いつまでに）<br />
-                    ・進捗確認方法の設定<br />
-                    ・リソース（時間/予算）の確保
-                  </Text>
-                </div>
-              </Card>
-            </Col>
           </Row>
         </Col>
       </Row>

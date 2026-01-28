@@ -574,6 +574,7 @@ export default function SessionPage() {
             setIsMindMapMode={setIsMindMapMode}
             handleEndSession={handleEndSession}
             isEnding={isEnding}
+            mode={sessionData?.mode}
           />
         </Content>
 

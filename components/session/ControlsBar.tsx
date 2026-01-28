@@ -17,6 +17,7 @@ interface ControlsBarProps {
   setIsMindMapMode: (isMindMapMode: boolean) => void;
   handleEndSession: () => Promise<void>;
   isEnding: boolean;
+  mode?: 'web' | 'face-to-face';
 }
 
 const ControlsBar: React.FC<ControlsBarProps> = ({
@@ -26,7 +27,12 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
   setIsMindMapMode,
   handleEndSession,
   isEnding,
+  mode = 'web',
 }) => {
+  const buttonText = mode === 'face-to-face' 
+    ? (isMindMapMode ? 'Switch to Dashboard' : 'Switch to MindMap')
+    : (isMindMapMode ? 'Switch to Video' : 'Switch to MindMap');
+
   return (
     <div style={{ position: 'relative', zIndex: 1000 }}>
       <Flex 
@@ -53,7 +59,7 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
         icon={isMindMapMode ? <VideoCameraOutlined /> : <PartitionOutlined />}
         onClick={() => setIsMindMapMode(!isMindMapMode)}
       >
-        {isMindMapMode ? 'Switch to Video' : 'Switch to MindMap'}
+        {buttonText}
       </Button>
 
        <Button
