@@ -33,14 +33,17 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
   }, [remoteAudioStream]);
 
   useEffect(() => {
-    let isActive = true;
+     let isActive = true;
 
-    if (!isMicOn) {
-      // Cleanup is handled by return function if component re-renders or unmounts,
-      // but explicit cleanup logic here helps if only isMicOn changes.
-      // We rely on the return function mostly.
-      return;
-    }
+     console.log('TranscriptionHandler useEffect: isMicOn =', isMicOn, 'isActive =', isActive);
+
+     if (!isMicOn) {
+       console.log('TranscriptionHandler: Mic is off, skipping transcription setup');
+       // Cleanup is handled by return function if component re-renders or unmounts,
+       // but explicit cleanup logic here helps if only isMicOn changes.
+       // We rely on the return function mostly.
+       return;
+     }
 
     const startTranscription = async () => {
       try {
@@ -76,7 +79,7 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
             language: "ja",
             smart_format: true,
             diarize: true,
-             interim_results: false,
+             interim_results: true,
             utterance_end_ms: 1000,
             vad_events: true,
             endpointing: 300,
@@ -112,49 +115,69 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
           }
           setConnectionState('connected');
 
-          // Start local microphone recording
-          navigator.mediaDevices.getUserMedia({ audio: { sampleRate: { ideal: 16000 } } }).then((stream) => {
-            if (!isActive) return;
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm; codecs=opus' });
-            mediaRecorderRef.current = mediaRecorder;
+           // Start local microphone recording
+           navigator.mediaDevices.getUserMedia({ audio: { sampleRate: { ideal: 16000 } } })
+             .then((stream) => {
+               if (!isActive) return;
+               const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm; codecs=opus' });
+               mediaRecorderRef.current = mediaRecorder;
 
-            mediaRecorder.addEventListener('dataavailable', (event) => {
-              if (event.data.size > 0 && connection.getReadyState() === 1) {
-                connection.send(event.data);
-              }
-            });
-            mediaRecorder.start(80); // Send chunk every 80ms (Deepgram recommended)
+               mediaRecorder.addEventListener('dataavailable', (event) => {
+                 if (event.data.size > 0 && connection.getReadyState() === 1) {
+                   connection.send(event.data);
+                 }
+               });
+               mediaRecorder.start(80); // Send chunk every 80ms (Deepgram recommended)
 
-            // Remote audio stream will be handled by the separate useEffect
-            // when connection state becomes 'connected'
-          });
+               // Remote audio stream will be handled by the separate useEffect
+               // when connection state becomes 'connected'
+             })
+             .catch((error) => {
+               console.error('Failed to get microphone access:', error);
+               if (isActive) {
+                 setConnectionState('disconnected');
+                 connection.finish();
+               }
+             });
         });
 
         connection.on(LiveTranscriptionEvents.Transcript, (data) => {
           if (!isActive) return;
-          const transcript = data.channel.alternatives[0]?.transcript;
-          if (transcript && transcript.trim().length > 0) {
-            // Extract speaker information from Deepgram diarization results
-            const words = data.channel.alternatives[0]?.words || [];
-            
-           // Debug logging to understand data structure
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Deepgram transcript received:', {
-              transcript,
-              wordCount: words.length,
-              wordsWithSpeakers: words.filter((w: DeepgramWord) => w.speaker !== undefined).length,
-              speakers: [...new Set(words.filter((w: DeepgramWord) => w.speaker !== undefined).map((w: DeepgramWord) => w.speaker))],
-              sampleWords: words.slice(0, 3).map((w: DeepgramWord) => ({
-                word: w.word,
-                speaker: w.speaker,
-                confidence: w.confidence
-              })),
-              dataStructure: Object.keys(data),
-              hasIsFinal: 'is_final' in data,
-              isFinal: data.is_final,
-              type: data.type
-            });
-          }
+           // Check if this is a final transcript (not interim result)
+           if (!data.is_final) {
+             // Skip interim results, only log for debugging
+             if (process.env.NODE_ENV === 'development') {
+               console.log('Skipping interim transcript:', {
+                 is_final: data.is_final,
+                 type: data.type,
+                 hasTranscript: !!data.channel.alternatives[0]?.transcript
+               });
+             }
+             return;
+           }
+           
+           const transcript = data.channel.alternatives[0]?.transcript;
+           if (transcript && transcript.trim().length > 0) {
+             // Extract speaker information from Deepgram diarization results
+             const words = data.channel.alternatives[0]?.words || [];
+             
+            // Debug logging for final transcripts
+           if (process.env.NODE_ENV === 'development') {
+             console.log('Deepgram FINAL transcript received:', {
+               transcript,
+               wordCount: words.length,
+               wordsWithSpeakers: words.filter((w: DeepgramWord) => w.speaker !== undefined).length,
+               speakers: [...new Set(words.filter((w: DeepgramWord) => w.speaker !== undefined).map((w: DeepgramWord) => w.speaker))],
+               sampleWords: words.slice(0, 3).map((w: DeepgramWord) => ({
+                 word: w.word,
+                 speaker: w.speaker,
+                 confidence: w.confidence
+               })),
+               dataStructure: Object.keys(data),
+               is_final: data.is_final,
+               type: data.type
+             });
+           }
 
             // Filter words with speaker information and sufficient confidence
             const validWords = words.filter((word: DeepgramWord) => 
