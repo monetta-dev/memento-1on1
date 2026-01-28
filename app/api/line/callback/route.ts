@@ -114,9 +114,13 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     // 友だち状態の確認（LINE Login APIを使用）
     let isFriend = false;
     
+    // 詳細な診断ログ
+    console.log('🔍 LINE Callback Debug - Start');
+    console.log('🔍 Callback query parameters:', Object.fromEntries(searchParams.entries()));
+    
     // 方法1: friendship_status_changed クエリパラメータをチェック
     const friendshipStatusChanged = searchParams.get('friendship_status_changed');
-    console.log('All callback query parameters:', Object.fromEntries(searchParams.entries()));
+    console.log('🔍 friendship_status_changed value:', friendshipStatusChanged, '(type:', typeof friendshipStatusChanged, ')');
     
     // friendship_status_changed の解釈:
     // - true: ログイン中に友達状態が変更された（友達追加またはブロック解除）
@@ -126,51 +130,95 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     // 方法2: LINE Login APIで友達状態を確認
     let apiFriendFlag = false;
     let apiCheckSuccessful = false;
+    let apiResponseStatus = 0;
+    let apiErrorMessage = '';
     
     if (accessToken) {
       try {
+        console.log('🔍 Checking friendship status with access token (length:', accessToken.length, ')...');
         const friendshipResponse = await fetch('https://api.line.me/friendship/v1/status', {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           },
         });
         
+        apiResponseStatus = friendshipResponse.status;
+        
         if (friendshipResponse.ok) {
           const friendshipData = await friendshipResponse.json();
           apiFriendFlag = friendshipData.friendFlag === true;
           apiCheckSuccessful = true;
-          console.log('LINE API friend status check:', { 
+          console.log('✅ LINE API friend status check SUCCESS:', { 
             lineUserId, 
             apiFriendFlag, 
             friendshipStatusChanged,
             friendFlag: friendshipData.friendFlag,
-            status: friendshipResponse.status
+            status: friendshipResponse.status,
+            responseBody: friendshipData
           });
         } else {
           const errorText = await friendshipResponse.text();
-          console.warn('Failed to fetch friendship status:', friendshipResponse.status, errorText);
+          apiErrorMessage = errorText;
+          console.warn('❌ Failed to fetch friendship status:', {
+            status: friendshipResponse.status,
+            errorText,
+            lineUserId,
+            accessTokenLength: accessToken.length
+          });
         }
       } catch (error) {
-        console.error('Error checking LINE friend status:', error);
+        console.error('❌ Error checking LINE friend status:', {
+          error: error instanceof Error ? error.message : String(error),
+          lineUserId,
+          accessTokenLength: accessToken ? accessToken.length : 0
+        });
       }
+    } else {
+      console.warn('⚠️ No access token available for friendship check');
     }
     
-    // 最終的なisFriendの決定
+    // 詳細なisFriend決定ロジック
+    console.log('🔍 isFriend decision logic:', {
+      friendshipStatusChanged,
+      apiCheckSuccessful,
+      apiFriendFlag,
+      apiResponseStatus,
+      apiErrorMessage: apiErrorMessage.substring(0, 100)
+    });
+    
+    // 最終的なisFriendの決定（改善版ロジック）
     if (friendshipStatusChanged === 'true') {
       // friendship_status_changedがtrueの場合、友達状態が変更されたとみなす
       isFriend = true;
-      console.log('Setting isFriend=true based on friendship_status_changed=true');
+      console.log('✅ Setting isFriend=true based on friendship_status_changed=true');
     } else if (apiCheckSuccessful) {
       // APIチェックが成功し、friendship_status_changedがtrueでない場合
       isFriend = apiFriendFlag;
-      console.log('Setting isFriend based on API result:', isFriend);
+      console.log('✅ Setting isFriend=', isFriend, 'based on API result');
     } else if (friendshipStatusChanged === 'false') {
       // APIチェックが失敗し、friendship_status_changedがfalseの場合
       // 状態が変更されなかったことを意味するが、既に友達かどうかは不明
-      // 安全策としてfalseを保持（既存のisFriend=false）
-      console.log('friendship_status_changed=false, API check failed, keeping isFriend=false');
+      // 安全策としてfalseを保持
+      console.log('⚠️ friendship_status_changed=false, API check failed, keeping isFriend=false');
+    } else if (friendshipStatusChanged === null) {
+      // friendship_status_changedがnullの場合（bot_prompt未使用/同意画面未表示）
+      console.log('⚠️ friendship_status_changed is null - possible issues:');
+      console.log('   - bot_prompt parameter not included in OAuth request');
+      console.log('   - consent screen not shown (already connected user)');
+      console.log('   - LINE configuration issue (channel not linked with official account)');
+      
+      if (apiCheckSuccessful) {
+        // APIチェックが成功した場合はAPI結果を使用
+        isFriend = apiFriendFlag;
+        console.log('✅ Using API result (isFriend=', isFriend, ') despite friendship_status_changed=null');
+      } else {
+        // APIチェックも失敗した場合は、現状維持（既存のisFriend値）
+        console.log('⚠️ Both friendship_status_changed=null and API check failed - keeping existing isFriend value');
+        // ここではisFriend=falseのまま（upsertで上書き）
+      }
     }
-    // その他のケース（friendship_status_changed=null、API失敗）はisFriend=falseのまま
+    
+    console.log('🔍 Final isFriend value:', isFriend);
 
     // 3. データベースに保存
     // Create adapter for cookie store

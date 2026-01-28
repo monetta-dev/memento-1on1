@@ -53,23 +53,56 @@ export default function SettingsPage() {
         
         // Check LINE connection status from database
         try {
+          console.log('🔍 Checking LINE connection status for user:', session.user.id);
+          
           const { data: lineData, error: lineError } = await supabase
             .from('line_notifications')
-            .select('id, line_user_id, enabled, line_display_name, is_friend')
+            .select('id, line_user_id, enabled, line_display_name, is_friend, created_at, updated_at')
             .eq('user_id', session.user.id)
             .eq('enabled', true)
             .not('line_user_id', 'is', null)
-            .single();
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          console.log('🔍 LINE connection check result:', {
+            hasData: !!lineData,
+            error: lineError,
+            data: lineData ? {
+              id: lineData.id,
+              line_user_id: lineData.line_user_id ? '[SET]' : '[MISSING]',
+              enabled: lineData.enabled,
+              is_friend: lineData.is_friend,
+              line_display_name: lineData.line_display_name,
+              created_at: lineData.created_at
+            } : null
+          });
           
           if (!lineError && lineData) {
             setLineConnected(true);
             setLineSettings(lineData);
-            console.log('LINE connected for user:', session.user.id, 'LINE user:', lineData.line_display_name);
+            console.log('✅ LINE connected for user:', session.user.id, 'LINE user:', lineData.line_display_name, 'is_friend:', lineData.is_friend);
           } else {
             setLineConnected(false);
+            console.log('⚠️ LINE not connected or error:', lineError?.message || 'No data found');
+            
+            // デバッグ: ユーザーの全レコードをチェック
+            const { data: allRecords } = await supabase
+              .from('line_notifications')
+              .select('id, enabled, line_user_id, is_friend, created_at')
+              .eq('user_id', session.user.id)
+              .order('created_at', { ascending: false });
+            
+            console.log('🔍 All LINE records for user:', allRecords?.map(r => ({
+              id: r.id,
+              enabled: r.enabled,
+              has_line_user_id: !!r.line_user_id,
+              is_friend: r.is_friend,
+              created_at: r.created_at
+            })));
           }
         } catch (error) {
-          console.error('Error checking LINE connection:', error);
+          console.error('❌ Error checking LINE connection:', error);
           setLineConnected(false);
         }
       } catch (error) {
@@ -130,42 +163,67 @@ export default function SettingsPage() {
   const handleLineConnect = async (reconnect = false) => {
     setLineLoading(true);
     try {
-      console.log('Starting LINE connect for user:', userEmail);
+      console.log('🔍 LINE Connect Debug - Frontend Start');
+      console.log('🔍 User:', userEmail);
+      console.log('🔍 reconnect parameter:', reconnect);
+      console.log('🔍 Current lineSettings:', lineSettings);
+      console.log('🔍 is_friend status:', lineSettings?.is_friend);
+      console.log('🔍 lineConnected status:', lineConnected);
+      
       const response = await fetch('/api/line/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userEmail, reconnect })
       });
-      console.log('Response status:', response.status, response.ok, 'headers:', Object.fromEntries(response.headers.entries()));
+      
+      console.log('🔍 Connect API Response:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
       
       const result = await response.json();
-       console.log('LINE connect API response:', result);
-       console.log('oauthUrl present?', !!result.oauthUrl, 'oauthUrl:', result.oauthUrl);
-       
+      console.log('🔍 Connect API Result:', result);
+      console.log('🔍 oauthUrl present:', !!result.oauthUrl);
+      
        if (response.ok && result.success) {
         if (result.oauthUrl) {
-          console.log('Redirecting to LINE OAuth URL:', result.oauthUrl);
+          console.log('🔍 Redirecting to LINE OAuth URL:', result.oauthUrl);
+          console.log('🔍 LINE Connect Debug - Frontend End (redirecting)');
           try {
             window.location.href = result.oauthUrl;
           } catch (err) {
-            console.error('Redirect failed:', err);
+            console.error('❌ Redirect failed:', err);
             message.error('リダイレクトに失敗しました');
           }
           // リダイレクトされるのでここで処理終了
           return;
         } else {
           // oauthUrlがない場合（モックモードなど）
+          console.log('🔍 No OAuth URL returned (mock mode)');
           setLineConnected(true);
           message.success(result.message || 'LINE連携を開始しました');
         }
       } else {
+        console.error('❌ Connect API returned error:', {
+          status: response.status,
+          result: result,
+          reconnectParameter: reconnect
+        });
         throw new Error(result.error || result.details || 'LINE連携に失敗しました');
       }
     } catch (error: unknown) {
-      console.error('LINE connect error:', error);
+      console.error('❌ LINE connect error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Error details:', {
+        errorMessage,
+        user: userEmail,
+        reconnectParameter: reconnect,
+        lineSettings
+      });
       message.error(`LINE連携に失敗しました: ${errorMessage}`);
     } finally {
+      console.log('🔍 LINE Connect Debug - Frontend End (loading stopped)');
       setLineLoading(false);
     }
   };
@@ -221,15 +279,16 @@ export default function SettingsPage() {
     },
     {
       id: 'line',
-       title: t('line'),
-        description: lineConnected && lineSettings?.is_friend === false 
-          ? 'LINE連携済みですが、公式アカウントを友だち追加してください'
-          : t('line_description'),
+      title: t('line'),
+      description: lineConnected && lineSettings?.is_friend === false 
+        ? 'LINE連携済みですが、公式アカウントを友だち追加してください'
+        : t('line_description'),
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
       connected: lineConnected,
       loading: lineLoading,
       disabled: false,
-       onConnect: () => handleLineConnect(false),
+      // is_friend=falseの場合は自動的にreconnect=true（友達追加画面表示）にリダイレクト
+      onConnect: () => handleLineConnect(lineSettings?.is_friend === false),
       onDisconnect: handleLineDisconnect,
       isGoogleCalendar: false,
     },
