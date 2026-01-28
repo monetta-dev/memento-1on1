@@ -75,7 +75,7 @@ async function ensureTestUser() {
   console.log('Checking test user...');
   
   // Try to sign in
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,

@@ -2,27 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@/lib/supabase';
 
-export async function GET(req: NextRequest) {
-  try {
-    const searchParams = req.nextUrl.searchParams;
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const error = searchParams.get('error');
-    const errorDescription = searchParams.get('error_description');
+ export async function GET(req: NextRequest) {
+   try {
+     const searchParams = req.nextUrl.searchParams;
+     const code = searchParams.get('code');
+     const state = searchParams.get('state');
+     const error = searchParams.get('error');
+     const errorDescription = searchParams.get('error_description');
+     const siteUrl = process.env.LINE_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
 
     // エラーチェック
     if (error) {
       console.error('LINE OAuth error:', error, errorDescription);
-      return NextResponse.redirect(
-        new URL('/settings?line_error=' + encodeURIComponent(errorDescription || error), req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=' + encodeURIComponent(errorDescription || error), siteUrl || req.url)
+       );
     }
 
     if (!code || !state) {
       console.error('Missing code or state in callback');
-      return NextResponse.redirect(
-        new URL('/settings?line_error=Missing authentication parameters', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=Missing authentication parameters', siteUrl || req.url)
+       );
     }
 
     // Cookieから保存したstateとユーザーIDを取得
@@ -37,29 +38,28 @@ export async function GET(req: NextRequest) {
     // State検証（CSRF保護）
     if (!savedState || savedState !== state) {
       console.error('Invalid state parameter:', { savedState, state });
-      return NextResponse.redirect(
-        new URL('/settings?line_error=Invalid authentication state', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=Invalid authentication state', siteUrl || req.url)
+       );
     }
 
     if (!userId) {
       console.error('No user ID found in cookies');
-      return NextResponse.redirect(
-        new URL('/settings?line_error=Session expired', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=Session expired', siteUrl || req.url)
+       );
     }
 
-    // LINE OAuth設定
-    const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
-    const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
-    const redirectUri = process.env.LINE_REDIRECT_URI;
-    const siteUrl = process.env.LINE_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+     // LINE OAuth設定
+     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
+     const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
+     const redirectUri = process.env.LINE_REDIRECT_URI;
 
     if (!channelId || !channelSecret || !redirectUri) {
       console.error('Missing LINE configuration');
-      return NextResponse.redirect(
-        new URL('/settings?line_error=LINE configuration missing', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=LINE configuration missing', siteUrl || req.url)
+       );
     }
 
     // 1. アクセストークンの取得
@@ -80,9 +80,9 @@ export async function GET(req: NextRequest) {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error('LINE token exchange failed:', tokenResponse.status, errorText);
-      return NextResponse.redirect(
-        new URL('/settings?line_error=Failed to exchange token', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=Failed to exchange token', siteUrl || req.url)
+       );
     }
 
     const tokenData = await tokenResponse.json();
@@ -135,9 +135,9 @@ export async function GET(req: NextRequest) {
     
     if (!session) {
       console.error('No Supabase session found');
-      return NextResponse.redirect(
-        new URL('/login?line_error=Please login first', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/login?line_error=Please login first', siteUrl || req.url)
+       );
     }
 
     const authUserId = session.user.id;
@@ -160,23 +160,26 @@ export async function GET(req: NextRequest) {
 
     if (dbError) {
       console.error('Database error saving LINE notification settings:', dbError);
-      return NextResponse.redirect(
-        new URL('/settings?line_error=Failed to save LINE settings', req.url)
-      );
+       return NextResponse.redirect(
+         new URL('/settings?line_error=Failed to save LINE settings', siteUrl || req.url)
+       );
     }
 
     console.log('LINE connection successful for user:', authUserId, 'LINE user:', lineDisplayName);
 
     // 4. 成功したら設定ページにリダイレクト
+    const redirectBase = siteUrl || req.url;
     return NextResponse.redirect(
-      new URL('/settings?line_success=LINE連携が完了しました', req.url)
+      new URL('/settings?line_success=LINE連携が完了しました', redirectBase)
     );
 
-  } catch (error: unknown) {
+   } catch (error: unknown) {
     console.error('LINE callback error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const siteUrl = process.env.LINE_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    const redirectBase = siteUrl || req.url;
     return NextResponse.redirect(
-      new URL(`/settings?line_error=${encodeURIComponent(errorMessage)}`, req.url)
+      new URL(`/settings?line_error=${encodeURIComponent(errorMessage)}`, redirectBase)
     );
   }
 }
