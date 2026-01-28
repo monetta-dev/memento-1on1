@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // 1. ユーザーのLINE通知設定を取得
     const { data: lineSettings, error: lineError } = await supabase
       .from('line_notifications')
-      .select('line_user_id, line_display_name, enabled, notification_types')
+      .select('line_user_id, line_display_name, enabled, notification_types, is_friend')
       .eq('user_id', userId)
       .eq('enabled', true)
       .not('line_user_id', 'is', null)
@@ -64,6 +64,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: '通知タイプが許可されていません',
         details: `許可されている通知タイプ: ${allowedTypes.join(', ')}`
+      }, { status: 400 });
+    }
+
+    // 2.5 友だち状態の確認
+    if (lineSettings.is_friend === false) {
+      return NextResponse.json({
+        error: 'LINE公式アカウントと友だちになっていません',
+        details: 'メッセージを送信するには公式アカウントを友だち追加してください',
+        action: 'reconnect',
+        reconnectUrl: '/api/line/connect'
       }, { status: 400 });
     }
 

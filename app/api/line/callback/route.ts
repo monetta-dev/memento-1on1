@@ -111,6 +111,30 @@ import { createRouteHandlerClient } from '@/lib/supabase';
       lineDisplayName = profileData.displayName || 'LINE User';
     }
 
+    // 友だち状態の確認（Messaging APIを使用）
+    let isFriend = false;
+    const messagingAccessToken = process.env.LINE_MESSAGING_ACCESS_TOKEN;
+    if (messagingAccessToken && lineUserId !== 'unknown') {
+      try {
+        const friendshipResponse = await fetch('https://api.line.me/friendship/v1/status', {
+          headers: {
+            'Authorization': `Bearer ${messagingAccessToken}`,
+          },
+        });
+        
+        if (friendshipResponse.ok) {
+          const friendshipData = await friendshipResponse.json();
+          isFriend = friendshipData.friendFlag === true;
+          console.log('LINE friend status:', { lineUserId, isFriend });
+        } else {
+          console.warn('Failed to fetch friendship status:', friendshipResponse.status);
+        }
+      } catch (error) {
+        console.error('Error checking LINE friend status:', error);
+        // エラーが発生しても続行
+      }
+    }
+
     // 3. データベースに保存
     // Create adapter for cookie store
     const cookieAdapter = {
@@ -153,6 +177,8 @@ import { createRouteHandlerClient } from '@/lib/supabase';
         enabled: true,
         notification_types: ['reminder'],
         remind_before_minutes: 60, // デフォルト1時間前
+        is_friend: isFriend,
+        friend_status_checked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id',

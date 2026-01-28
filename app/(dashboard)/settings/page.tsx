@@ -8,6 +8,14 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+type LineSettings = {
+  id: string;
+  line_user_id: string;
+  enabled: boolean;
+  line_display_name?: string;
+  is_friend?: boolean;
+};
+
 const { Title } = Typography;
 
 export default function SettingsPage() {
@@ -15,6 +23,7 @@ export default function SettingsPage() {
   const { language, setLanguage, t } = useLanguage();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [lineConnected, setLineConnected] = useState(false);
+  const [lineSettings, setLineSettings] = useState<LineSettings | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [lineLoading, setLineLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -46,7 +55,7 @@ export default function SettingsPage() {
         try {
           const { data: lineData, error: lineError } = await supabase
             .from('line_notifications')
-            .select('id, line_user_id, enabled, line_display_name')
+            .select('id, line_user_id, enabled, line_display_name, is_friend')
             .eq('user_id', session.user.id)
             .eq('enabled', true)
             .not('line_user_id', 'is', null)
@@ -54,6 +63,7 @@ export default function SettingsPage() {
           
           if (!lineError && lineData) {
             setLineConnected(true);
+            setLineSettings(lineData);
             console.log('LINE connected for user:', session.user.id, 'LINE user:', lineData.line_display_name);
           } else {
             setLineConnected(false);
@@ -117,7 +127,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleLineConnect = async () => {
+  const handleLineConnect = async (reconnect = false) => {
     setLineLoading(true);
     try {
       console.log('Starting LINE connect for user:', userEmail);
@@ -212,12 +222,14 @@ export default function SettingsPage() {
     {
       id: 'line',
        title: t('line'),
-       description: t('line_description'),
+        description: lineConnected && lineSettings?.is_friend === false 
+          ? 'LINE連携済みですが、公式アカウントを友だち追加してください'
+          : t('line_description'),
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
       connected: lineConnected,
       loading: lineLoading,
       disabled: false,
-      onConnect: handleLineConnect,
+       onConnect: () => handleLineConnect(false),
       onDisconnect: handleLineDisconnect,
       isGoogleCalendar: false,
     },
@@ -275,6 +287,23 @@ export default function SettingsPage() {
                   <div className="ant-list-item-meta-content">
                     <h4 className="ant-list-item-meta-title" style={{ marginBottom: 4 }}>{item.title}</h4>
                     <div className="ant-list-item-meta-description" style={{ color: 'rgba(0, 0, 0, 0.45)' }}>{item.description}</div>
+                    {item.id === 'line' && lineConnected && lineSettings?.is_friend === false && (
+                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: '#faad14', fontSize: '12px' }}>
+                          ⚠️ 友だち追加が完了していません。メッセージを受信するには追加が必要です。
+                        </span>
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => handleLineConnect(true)}
+                          loading={lineLoading}
+                          disabled={lineLoading}
+                          style={{ padding: 0, height: 'auto' }}
+                        >
+                          友だち追加を完了する
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
                  <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>

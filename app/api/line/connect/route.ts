@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
+    const { userId, reconnect = false } = await req.json();
     console.log('LINE connect request headers:', Object.fromEntries(req.headers.entries()));
     console.log('LINE connect request body userId:', userId);
     
@@ -58,8 +58,7 @@ export async function POST(req: NextRequest) {
       redirect_uri: redirectUri,
       state: state,
       scope: 'profile openid',
-      // ユーザーIDを固定して再認証を促す（任意）
-      // bot_prompt: 'normal',
+      bot_prompt: reconnect ? 'aggressive' : 'normal',
     });
 
     lineOAuthUrl.search = params.toString();
