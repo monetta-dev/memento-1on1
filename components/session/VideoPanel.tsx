@@ -12,18 +12,21 @@ interface SessionData {
 
 interface VideoPanelProps {
   sessionData?: SessionData;
-  micOn: boolean;
-  remoteAudioStream: MediaStream | null;
-  onTranscript: (text: string, speaker: 'manager' | 'subordinate') => void;
+  micOn?: boolean;
+  remoteAudioStream?: MediaStream | null;
+  onTranscript?: (text: string, speaker: 'manager' | 'subordinate') => void;
   onRemoteAudioTrack: (stream: MediaStream | null) => void;
   username?: string;
 }
 
 const VideoPanel: React.FC<VideoPanelProps> = ({
   sessionData,
-  micOn,
-  remoteAudioStream,
-  onTranscript,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  micOn: _micOn,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  remoteAudioStream: _remoteAudioStream,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onTranscript: _onTranscript,
   onRemoteAudioTrack,
   username = "Manager",
 }) => {
