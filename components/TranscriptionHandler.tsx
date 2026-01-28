@@ -76,7 +76,7 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
             language: "ja",
             smart_format: true,
             diarize: true,
-            interim_results: true,
+             interim_results: false,
             utterance_end_ms: 1000,
             vad_events: true,
             endpointing: 300,
@@ -137,20 +137,24 @@ export default function TranscriptionHandler({ onTranscript, isMicOn, remoteAudi
             // Extract speaker information from Deepgram diarization results
             const words = data.channel.alternatives[0]?.words || [];
             
-            // Debug logging to understand data structure
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Deepgram transcript received:', {
-                transcript,
-                wordCount: words.length,
-                wordsWithSpeakers: words.filter((w: DeepgramWord) => w.speaker !== undefined).length,
-                speakers: [...new Set(words.filter((w: DeepgramWord) => w.speaker !== undefined).map((w: DeepgramWord) => w.speaker))],
-                sampleWords: words.slice(0, 3).map((w: DeepgramWord) => ({
-                  word: w.word,
-                  speaker: w.speaker,
-                  confidence: w.confidence
-                }))
-              });
-            }
+           // Debug logging to understand data structure
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Deepgram transcript received:', {
+              transcript,
+              wordCount: words.length,
+              wordsWithSpeakers: words.filter((w: DeepgramWord) => w.speaker !== undefined).length,
+              speakers: [...new Set(words.filter((w: DeepgramWord) => w.speaker !== undefined).map((w: DeepgramWord) => w.speaker))],
+              sampleWords: words.slice(0, 3).map((w: DeepgramWord) => ({
+                word: w.word,
+                speaker: w.speaker,
+                confidence: w.confidence
+              })),
+              dataStructure: Object.keys(data),
+              hasIsFinal: 'is_final' in data,
+              isFinal: data.is_final,
+              type: data.type
+            });
+          }
 
             // Filter words with speaker information and sufficient confidence
             const validWords = words.filter((word: DeepgramWord) => 
