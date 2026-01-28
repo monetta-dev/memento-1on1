@@ -48,6 +48,11 @@ export default function SessionPage() {
    const [isMindMapMode, setIsMindMapMode] = useState(false);
    // Face-to-Face mode state
    const [notes, setNotes] = useState<Note[]>([]);
+   const [isAiQuestionMode, setIsAiQuestionMode] = useState(false);
+
+   const handleToggleMode = useCallback(() => {
+     setIsAiQuestionMode(prev => !prev);
+   }, []);
   
   const [micOn, setMicOn] = useState(true); // Re-introduce mic control for transcription handling
   const isAnalyzingRef = useRef<boolean>(false);
@@ -79,15 +84,17 @@ export default function SessionPage() {
   }, []);
 
   // Face-to-Face mode handlers
-  const handleAddNote = useCallback((content: string) => {
-    const newNote: Note = {
-      id: Date.now().toString(),
-      content,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      source: 'manual'
-    };
-    setNotes(prev => [...prev, newNote]);
-  }, []);
+   const handleAddNote = useCallback((content: string) => {
+     const newNote: Note = {
+       id: Date.now().toString(),
+       content,
+       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+       source: 'manual'
+     };
+     setNotes(prev => [...prev, newNote]);
+   }, []);
+
+
 
 
 
@@ -125,15 +132,70 @@ export default function SessionPage() {
      }
    }, [sessionData, notes.length]);
 
-  const subordinate = useMemo(() => {
-    if (!sessionData) {
-      return undefined;
-    }
-    const sub = subordinates.find(s => s.id === sessionData.subordinateId);
-    return sub;
-  }, [sessionData, subordinates]);
+   const subordinate = useMemo(() => {
+     if (!sessionData) {
+       return undefined;
+     }
+     const sub = subordinates.find(s => s.id === sessionData.subordinateId);
+     return sub;
+   }, [sessionData, subordinates]);
 
-  // Trigger real-time AI advice based on conversation
+   const handleAskAI = useCallback(async (question: string) => {
+     if (!question.trim()) return;
+     
+     try {
+       const recentMessages = messages.slice(-10); // Last 10 messages
+       
+       const response = await fetch('/api/chat/ask', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           transcript: recentMessages,
+           theme: sessionData?.theme || 'General Check-in',
+           subordinateTraits: subordinate?.traits || [],
+           question: question.trim()
+         })
+       });
+
+       if (!response.ok) throw new Error('API call failed');
+
+       const data = await response.json();
+       if (data.answer) {
+         const aiNote: Note = {
+           id: Date.now().toString(),
+           content: data.answer,
+           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+           source: 'ai'
+         };
+         setNotes(prev => [...prev, aiNote]);
+         notification.success({
+           message: 'AI Response',
+           description: 'AI answer has been added as a note',
+           placement: 'topRight',
+           duration: 3,
+         });
+       }
+     } catch (error) {
+       console.error('Failed to get AI answer:', error);
+       // Fallback to mock answer
+       const mockAnswer = "Could not get AI response. Please check your connection and try again.";
+       const aiNote: Note = {
+         id: Date.now().toString(),
+         content: mockAnswer,
+         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+         source: 'ai'
+       };
+       setNotes(prev => [...prev, aiNote]);
+       notification.error({
+         message: 'AI Response Failed',
+         description: 'Using fallback answer',
+         placement: 'topRight',
+         duration: 4,
+       });
+     }
+   }, [messages, sessionData, subordinate]);
+
+   // Trigger real-time AI advice based on conversation
   useEffect(() => {
     const fetchRealTimeAdvice = async () => {
       if (isAnalyzingRef.current || messages.length < 3) return; // Need minimum conversation
@@ -470,10 +532,13 @@ export default function SessionPage() {
                    height: '100%', 
                    position: 'relative',
                  }}>
-                   <FaceToFaceDashboard
-                     notes={notes}
-                     onAddNote={handleAddNote}
-                   />
+                    <FaceToFaceDashboard
+                      notes={notes}
+                      onAddNote={handleAddNote}
+                      isAiQuestionMode={isAiQuestionMode}
+                      onToggleMode={handleToggleMode}
+                      onAskAI={handleAskAI}
+                    />
                  </div>
                )}
               

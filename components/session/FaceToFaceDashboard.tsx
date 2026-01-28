@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Typography, Tag, Input, Button, List, Space } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
+import { FileTextOutlined, BulbOutlined } from '@ant-design/icons';
 import type { Note } from '@/store/useStore';
 
 const { Text, Paragraph } = Typography;
@@ -11,20 +11,55 @@ const { TextArea } = Input;
 interface FaceToFaceDashboardProps {
   notes: Note[];
   onAddNote: (content: string) => void;
+  isAiQuestionMode: boolean;
+  onToggleMode: () => void;
+  onAskAI: (question: string) => Promise<void>;
 }
 
 const FaceToFaceDashboard: React.FC<FaceToFaceDashboardProps> = ({
   notes,
   onAddNote,
+  isAiQuestionMode,
+  onToggleMode,
+  onAskAI,
 }) => {
   const [newNoteText, setNewNoteText] = useState('');
 
-  const handleAddNote = () => {
-    if (newNoteText.trim()) {
+  const handleSubmit = useCallback(() => {
+    if (!newNoteText.trim()) return;
+    
+    if (isAiQuestionMode) {
+      onAskAI(newNoteText.trim()).then(() => {
+        setNewNoteText('');
+      }).catch(() => {
+        // Error handling is done in parent
+      });
+    } else {
       onAddNote(newNoteText.trim());
       setNewNoteText('');
     }
-  };
+  }, [newNoteText, isAiQuestionMode, onAskAI, onAddNote]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Tab key toggles mode
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      onToggleMode();
+    }
+    // Ctrl+Enter submits
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }, [onToggleMode, handleSubmit]);
+
+  useEffect(() => {
+    // Focus the textarea when mode changes
+    const textarea = document.querySelector('textarea[placeholder*="メモ"], textarea[placeholder*="AI"]');
+    if (textarea) {
+      (textarea as HTMLTextAreaElement).focus();
+    }
+  }, [isAiQuestionMode]);
 
   return (
     <div style={{ 
@@ -35,13 +70,24 @@ const FaceToFaceDashboard: React.FC<FaceToFaceDashboardProps> = ({
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <Card 
-        title={
-          <Space>
-            <FileTextOutlined />
-            <span>メモ</span>
-          </Space>
-        }
+       <Card 
+         title={
+           <Space>
+             <FileTextOutlined />
+             <span>メモ</span>
+             <Button 
+               size="small" 
+               type={isAiQuestionMode ? "primary" : "default"}
+               onClick={onToggleMode}
+               icon={<BulbOutlined />}
+             >
+               {isAiQuestionMode ? 'AI質問モード' : 'メモモード'}
+             </Button>
+             <Text type="secondary" style={{ fontSize: 11 }}>
+               Tabキーで切り替え
+             </Text>
+           </Space>
+         }
         size="small"
         style={{ 
           flex: 1,
@@ -60,28 +106,32 @@ const FaceToFaceDashboard: React.FC<FaceToFaceDashboardProps> = ({
         {/* メモ入力エリア */}
         <div style={{ marginBottom: 12 }}>
           <TextArea 
-            placeholder="メモを入力...（Ctrl+Enterで追加）"
+            placeholder={isAiQuestionMode ? "AIに質問を入力...（Ctrl+Enterで送信、Tabでモード切替）" : "メモを入力...（Ctrl+Enterで追加、Tabでモード切替）"}
             value={newNoteText}
             onChange={(e) => setNewNoteText(e.target.value)}
             autoSize={{ minRows: 3, maxRows: 5 }}
-            onPressEnter={(e) => {
-              if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                handleAddNote();
-              }
-            }}
+            onKeyDown={handleKeyDown}
+            style={isAiQuestionMode ? { borderColor: '#722ed1' } : {}}
           />
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center' }}>
-            <Button 
-              type="primary" 
-              onClick={handleAddNote}
-              disabled={!newNoteText.trim()}
-            >
-              メモを追加
-            </Button>
-            <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
-              Ctrl+Enterで追加
-            </Text>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <Button 
+                type="primary" 
+                onClick={handleSubmit}
+                disabled={!newNoteText.trim()}
+                icon={isAiQuestionMode ? <BulbOutlined /> : <FileTextOutlined />}
+              >
+                {isAiQuestionMode ? 'AIに質問' : 'メモを追加'}
+              </Button>
+              <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                {isAiQuestionMode ? 'Ctrl+Enterで送信' : 'Ctrl+Enterで追加'}
+              </Text>
+            </div>
+            <div>
+              <Tag color={isAiQuestionMode ? 'purple' : 'blue'}>
+                {isAiQuestionMode ? 'AI質問モード' : 'メモモード'}
+              </Tag>
+            </div>
           </div>
         </div>
 
