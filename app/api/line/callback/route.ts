@@ -111,29 +111,66 @@ import { createRouteHandlerClient } from '@/lib/supabase';
       lineDisplayName = profileData.displayName || 'LINE User';
     }
 
-    // 友だち状態の確認（Messaging APIを使用）
+    // 友だち状態の確認（LINE Login APIを使用）
     let isFriend = false;
-    const messagingAccessToken = process.env.LINE_MESSAGING_ACCESS_TOKEN;
-    if (messagingAccessToken && lineUserId !== 'unknown') {
+    
+    // 方法1: friendship_status_changed クエリパラメータをチェック
+    const friendshipStatusChanged = searchParams.get('friendship_status_changed');
+    console.log('All callback query parameters:', Object.fromEntries(searchParams.entries()));
+    
+    // friendship_status_changed の解釈:
+    // - true: ログイン中に友達状態が変更された（友達追加またはブロック解除）
+    // - false: 状態が変更されなかった（既に友達であるか、友達追加しなかった）
+    // - null/undefined: bot_promptパラメータが使われなかった、または同意画面が表示されなかった
+    
+    // 方法2: LINE Login APIで友達状態を確認
+    let apiFriendFlag = false;
+    let apiCheckSuccessful = false;
+    
+    if (accessToken) {
       try {
         const friendshipResponse = await fetch('https://api.line.me/friendship/v1/status', {
           headers: {
-            'Authorization': `Bearer ${messagingAccessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
         });
         
         if (friendshipResponse.ok) {
           const friendshipData = await friendshipResponse.json();
-          isFriend = friendshipData.friendFlag === true;
-          console.log('LINE friend status:', { lineUserId, isFriend });
+          apiFriendFlag = friendshipData.friendFlag === true;
+          apiCheckSuccessful = true;
+          console.log('LINE API friend status check:', { 
+            lineUserId, 
+            apiFriendFlag, 
+            friendshipStatusChanged,
+            friendFlag: friendshipData.friendFlag,
+            status: friendshipResponse.status
+          });
         } else {
-          console.warn('Failed to fetch friendship status:', friendshipResponse.status);
+          const errorText = await friendshipResponse.text();
+          console.warn('Failed to fetch friendship status:', friendshipResponse.status, errorText);
         }
       } catch (error) {
         console.error('Error checking LINE friend status:', error);
-        // エラーが発生しても続行
       }
     }
+    
+    // 最終的なisFriendの決定
+    if (friendshipStatusChanged === 'true') {
+      // friendship_status_changedがtrueの場合、友達状態が変更されたとみなす
+      isFriend = true;
+      console.log('Setting isFriend=true based on friendship_status_changed=true');
+    } else if (apiCheckSuccessful) {
+      // APIチェックが成功し、friendship_status_changedがtrueでない場合
+      isFriend = apiFriendFlag;
+      console.log('Setting isFriend based on API result:', isFriend);
+    } else if (friendshipStatusChanged === 'false') {
+      // APIチェックが失敗し、friendship_status_changedがfalseの場合
+      // 状態が変更されなかったことを意味するが、既に友達かどうかは不明
+      // 安全策としてfalseを保持（既存のisFriend=false）
+      console.log('friendship_status_changed=false, API check failed, keeping isFriend=false');
+    }
+    // その他のケース（friendship_status_changed=null、API失敗）はisFriend=falseのまま
 
     // 3. データベースに保存
     // Create adapter for cookie store
@@ -167,7 +204,7 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     const authUserId = session.user.id;
 
     // line_notificationsテーブルに保存または更新
-    const { data, error: dbError } = await supabase
+    const { data: _data, error: dbError } = await supabase
       .from('line_notifications')
       .upsert({
         user_id: authUserId,
@@ -186,9 +223,9 @@ import { createRouteHandlerClient } from '@/lib/supabase';
 
     if (dbError) {
       console.error('Database error saving LINE notification settings:', dbError);
-       return NextResponse.redirect(
-         new URL('/settings?line_error=Failed to save LINE settings', siteUrl || req.url)
-       );
+        return NextResponse.redirect(
+          new URL('/settings?line_error=Failed to save LINE settings', siteUrl || req.url)
+        );
     }
 
     console.log('LINE connection successful for user:', authUserId, 'LINE user:', lineDisplayName);

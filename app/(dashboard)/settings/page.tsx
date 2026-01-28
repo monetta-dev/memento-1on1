@@ -6,7 +6,7 @@ import type { MenuProps } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 type LineSettings = {
   id: string;
@@ -134,7 +134,7 @@ export default function SettingsPage() {
       const response = await fetch('/api/line/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userEmail })
+        body: JSON.stringify({ userId: userEmail, reconnect })
       });
       console.log('Response status:', response.status, response.ok, 'headers:', Object.fromEntries(response.headers.entries()));
       
