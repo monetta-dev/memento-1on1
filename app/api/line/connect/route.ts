@@ -27,8 +27,10 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // セキュアなstateパラメータを生成（CSRF保護）
-    const state = crypto.randomBytes(32).toString('hex');
+    // セキュアなstateパラメータを生成（CSRF保護 + bot_prompt情報を含む）
+    const stateBase = crypto.randomBytes(32).toString('hex');
+    // stateにbot_prompt情報をエンコード: {random}::{bot_prompt_value}
+    const state = `${stateBase}::${reconnect ? 'aggressive' : 'normal'}`;
     
     // stateをcookieに保存（コールバックで検証するため）
     const cookieStore = await cookies();

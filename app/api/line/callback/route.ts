@@ -35,13 +35,35 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     cookieStore.delete('line_oauth_state');
     cookieStore.delete('line_oauth_user_id');
 
-    // State検証（CSRF保護）
-    if (!savedState || savedState !== state) {
-      console.error('Invalid state parameter:', { savedState, state });
-       return NextResponse.redirect(
-         new URL('/settings?line_error=Invalid authentication state', siteUrl || req.url)
-       );
+    // Stateからbot_prompt情報を抽出（形式: {random}::{bot_prompt_value}）
+    let botPromptFromState: 'aggressive' | 'normal' | null = null;
+    let stateBase = state;
+    if (savedState && savedState.includes('::')) {
+      const parts = savedState.split('::');
+      if (parts.length >= 2) {
+        stateBase = parts[0]; // ランダム部分
+        const botPromptPart = parts[1];
+        if (botPromptPart === 'aggressive' || botPromptPart === 'normal') {
+          botPromptFromState = botPromptPart;
+          console.log('🔍 Extracted bot_prompt from state:', botPromptFromState);
+        }
+      }
     }
+
+    // State検証（CSRF保護）- ランダム部分のみを比較
+    if (!savedState || !savedState.startsWith(stateBase)) {
+      console.error('Invalid state parameter:', { 
+        savedState, 
+        state, 
+        stateBase,
+        botPromptFromState 
+      });
+        return NextResponse.redirect(
+          new URL('/settings?line_error=Invalid authentication state', siteUrl || req.url)
+        );
+    }
+
+    console.log('🔍 State validation passed. bot_prompt from state:', botPromptFromState);
 
     if (!userId) {
       console.error('No user ID found in cookies');
@@ -180,41 +202,82 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     // 詳細なisFriend決定ロジック
     console.log('🔍 isFriend decision logic:', {
       friendshipStatusChanged,
+      botPromptFromState,
       apiCheckSuccessful,
       apiFriendFlag,
       apiResponseStatus,
       apiErrorMessage: apiErrorMessage.substring(0, 100)
     });
     
-    // 最終的なisFriendの決定（改善版ロジック）
+    // 最終的なisFriendの決定（改善版ロジック - bot_prompt情報を考慮）
     if (friendshipStatusChanged === 'true') {
       // friendship_status_changedがtrueの場合、友達状態が変更されたとみなす
       isFriend = true;
       console.log('✅ Setting isFriend=true based on friendship_status_changed=true');
-    } else if (apiCheckSuccessful) {
-      // APIチェックが成功し、friendship_status_changedがtrueでない場合
-      isFriend = apiFriendFlag;
-      console.log('✅ Setting isFriend=', isFriend, 'based on API result');
     } else if (friendshipStatusChanged === 'false') {
-      // APIチェックが失敗し、friendship_status_changedがfalseの場合
-      // 状態が変更されなかったことを意味するが、既に友達かどうかは不明
-      // 安全策としてfalseを保持
-      console.log('⚠️ friendship_status_changed=false, API check failed, keeping isFriend=false');
+      // friendship_status_changedがfalseの場合、状態が変更されなかった
+      // 既に友達かどうかは不明だが、少なくとも今回のフローでは友達追加されていない
+      console.log('⚠️ friendship_status_changed=false - friend status did not change during this flow');
+      
+      if (apiCheckSuccessful) {
+        // API結果を使用
+        isFriend = apiFriendFlag;
+        console.log('✅ Setting isFriend=', isFriend, 'based on API result (friendship_status_changed=false)');
+      } else {
+        // APIチェック失敗時は現状維持
+        console.log('⚠️ API check failed with friendship_status_changed=false - keeping existing isFriend value');
+      }
     } else if (friendshipStatusChanged === null) {
-      // friendship_status_changedがnullの場合（bot_prompt未使用/同意画面未表示）
+      // friendship_status_changedがnullの場合（同意画面未表示/スキップ）
       console.log('⚠️ friendship_status_changed is null - possible issues:');
       console.log('   - bot_prompt parameter not included in OAuth request');
       console.log('   - consent screen not shown (already connected user)');
       console.log('   - LINE configuration issue (channel not linked with official account)');
+      console.log('   - Current bot_prompt from state:', botPromptFromState);
       
-      if (apiCheckSuccessful) {
-        // APIチェックが成功した場合はAPI結果を使用
-        isFriend = apiFriendFlag;
-        console.log('✅ Using API result (isFriend=', isFriend, ') despite friendship_status_changed=null');
+      if (botPromptFromState === 'aggressive') {
+        // bot_prompt=aggressiveの場合、友達追加画面が表示されたはず
+        // ただし同意画面がスキップされた可能性がある
+        console.log('🔍 bot_prompt=aggressive detected in state');
+        
+        if (apiCheckSuccessful) {
+          // API結果を使用（友達追加画面が表示されたが、ユーザーが追加しなかった可能性）
+          isFriend = apiFriendFlag;
+          console.log('✅ Using API result (isFriend=', isFriend, ') for bot_prompt=aggressive with friendship_status_changed=null');
+        } else {
+          // APIチェック失敗時は現状維持
+          console.log('⚠️ API check failed with bot_prompt=aggressive - keeping existing isFriend value');
+        }
+      } else if (botPromptFromState === 'normal') {
+        // bot_prompt=normalの場合、同意画面にオプションが表示されたが追加されなかった可能性
+        console.log('🔍 bot_prompt=normal detected in state');
+        
+        if (apiCheckSuccessful) {
+          // API結果を使用
+          isFriend = apiFriendFlag;
+          console.log('✅ Using API result (isFriend=', isFriend, ') for bot_prompt=normal with friendship_status_changed=null');
+        } else {
+          // APIチェック失敗時は現状維持
+          console.log('⚠️ API check failed with bot_prompt=normal - keeping existing isFriend value');
+        }
       } else {
-        // APIチェックも失敗した場合は、現状維持（既存のisFriend値）
-        console.log('⚠️ Both friendship_status_changed=null and API check failed - keeping existing isFriend value');
-        // ここではisFriend=falseのまま（upsertで上書き）
+        // bot_prompt情報なし
+        console.log('🔍 No bot_prompt information in state');
+        
+        if (apiCheckSuccessful) {
+          // API結果を使用
+          isFriend = apiFriendFlag;
+          console.log('✅ Using API result (isFriend=', isFriend, ') with no bot_prompt info');
+        } else {
+          // APIチェック失敗時は現状維持
+          console.log('⚠️ Both friendship_status_changed=null and API check failed - keeping existing isFriend value');
+        }
+      }
+    } else {
+      // その他のケース（通常はapiCheckSuccessful=trueの場合）
+      if (apiCheckSuccessful) {
+        isFriend = apiFriendFlag;
+        console.log('✅ Setting isFriend=', isFriend, 'based on API result (default case)');
       }
     }
     
