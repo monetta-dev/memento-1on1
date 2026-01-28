@@ -9,6 +9,7 @@ import {
   SettingOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -23,6 +24,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
   const getSelectedKey = () => {
     if (pathname.startsWith('/session')) return 'session'; // Though usually hidden or different layout
     if (pathname.startsWith('/crm')) return 'crm';
+    if (pathname.startsWith('/guide')) return 'guide';
     if (pathname.startsWith('/settings')) return 'settings';
     return 'dashboard';
   };
@@ -39,6 +41,12 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
       icon: <TeamOutlined />,
       label: '部下管理 (CRM)',
       onClick: () => router.push('/crm'),
+    },
+    {
+      key: 'guide',
+      icon: <BookOutlined />,
+      label: 'ガイド',
+      onClick: () => router.push('/guide'),
     },
     {
       key: 'settings',
