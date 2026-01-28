@@ -250,6 +250,34 @@ import { createRouteHandlerClient } from '@/lib/supabase';
     }
 
     const authUserId = session.user.id;
+    
+    // 既存のLINE通知設定を取得（is_friend値の保持のため）
+    let existingIsFriend = false;
+    try {
+      const { data: existingRecord } = await supabase
+        .from('line_notifications')
+        .select('is_friend')
+        .eq('user_id', authUserId)
+        .maybeSingle();
+      
+      if (existingRecord) {
+        existingIsFriend = existingRecord.is_friend === true;
+        console.log('🔍 Existing record found, is_friend:', existingIsFriend);
+      } else {
+        console.log('🔍 No existing record found, using default is_friend=false');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching existing record:', error);
+    }
+    
+    // is_friend値の最終調整（既存値の保持）
+    if (friendshipStatusChanged === null && !apiCheckSuccessful) {
+      // friendship_status_changed=null かつ APIチェック失敗の場合、既存値を保持
+      isFriend = existingIsFriend;
+      console.log('🔍 Using existing is_friend value:', isFriend, '(friendship_status_changed=null, API check failed)');
+    }
+    
+    console.log('🔍 Final isFriend value after adjustment:', isFriend);
 
     // line_notificationsテーブルに保存または更新
     const { data: _data, error: dbError } = await supabase
