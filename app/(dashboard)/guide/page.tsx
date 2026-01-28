@@ -33,7 +33,7 @@ export default async function GuidePage() {
 
   try {
     // Read the markdown file
-    const guidePath = path.join(process.cwd(), 'LEARNING_GUIDE.md');
+    const guidePath = path.join(process.cwd(), 'public', 'LEARNING_GUIDE.md');
     const content = await fs.readFile(guidePath, 'utf-8');
     
     // Split into sections
