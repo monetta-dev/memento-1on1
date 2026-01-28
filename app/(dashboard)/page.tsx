@@ -7,6 +7,7 @@ import { useStore, Session } from '@/store/useStore';
 import { createClientComponentClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
+import { THEME_OPTIONS, OTHER_THEME_VALUE } from '@/lib/constants';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const router = useRouter();
   const { subordinates, sessions, addSession, fetchSubordinates, fetchSessions, setUserId } = useStore();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<string>('');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function Dashboard() {
   }, [fetchSubordinates, fetchSessions, setUserId]);
 
   const handleStart = () => {
+    setSelectedTheme('');
     setIsModalVisible(true);
   };
 
@@ -54,15 +57,25 @@ export default function Dashboard() {
       
       const startDate = values.sessionDateTime.toDate();
       
+      // Determine theme label
+      let themeLabel = values.theme;
+      if (values.theme === OTHER_THEME_VALUE) {
+        themeLabel = values.customTheme;
+      } else {
+        const selectedOption = THEME_OPTIONS.find(opt => opt.value === values.theme);
+        themeLabel = selectedOption?.label || values.theme;
+      }
+      
       const sessionId = await addSession({
         subordinateId: values.subordinateId,
         date: startDate.toISOString(),
         mode: values.mode,
-        theme: values.theme,
+        theme: themeLabel,
       }, userId);
       
       if (sessionId) {
         setIsModalVisible(false);
+        setSelectedTheme('');
         router.push(`/session/${sessionId}`);
       }
     });
@@ -171,7 +184,7 @@ export default function Dashboard() {
         title="Start New 1on1 Session"
         open={isModalVisible}
         onOk={handleOk}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={() => { setIsModalVisible(false); setSelectedTheme(''); }}
         okText="Start Session"
       >
          <Form form={form} layout="vertical" initialValues={{ mode: 'web', sessionDateTime: dayjs().add(1, 'hour'), duration: 1 }}>
@@ -199,12 +212,26 @@ export default function Dashboard() {
           </Form.Item>
 
            <Form.Item
-            name="theme"
-            label="Theme / Topic"
-            rules={[{ required: true, message: 'Please enter a theme' }]}
-          >
-            <Input placeholder="e.g., Career Growth, Project A, Feedback" id="theme" />
-          </Form.Item>
+             name="theme"
+             label="Theme / Topic"
+             rules={[{ required: true, message: 'Please select a theme' }]}
+           >
+             <Select
+               placeholder="Select a theme"
+               onChange={(value) => setSelectedTheme(value)}
+               options={THEME_OPTIONS}
+             />
+           </Form.Item>
+           
+           {selectedTheme === OTHER_THEME_VALUE && (
+             <Form.Item
+               name="customTheme"
+               label="Custom Theme"
+               rules={[{ required: true, message: 'Please enter a custom theme' }]}
+             >
+               <Input placeholder="Enter your custom theme" />
+             </Form.Item>
+           )}
 
           <Form.Item
             name="sessionDateTime"
