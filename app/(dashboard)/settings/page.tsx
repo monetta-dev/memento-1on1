@@ -36,26 +36,26 @@ export default function SettingsPage() {
     const checkAuthStatus = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         if (error || !session) {
           router.push('/login');
           return;
         }
 
         setUserEmail(session.user.email || '');
-        
+
         // Check if user logged in with Google OAuth
         const isGoogleUser = !!session.provider_token;
         setIsGoogleAuth(isGoogleUser);
-        
+
         // Check if Google OAuth token exists
         const hasGoogleToken = !!session.provider_token;
         setGoogleConnected(hasGoogleToken);
-        
+
         // Check LINE connection status from database
         try {
           console.log('🔍 Checking LINE connection status for user:', session.user.id);
-          
+
           const { data: lineData, error: lineError } = await supabase
             .from('line_notifications')
             .select('id, line_user_id, enabled, line_display_name, is_friend, created_at, updated_at')
@@ -65,7 +65,7 @@ export default function SettingsPage() {
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-          
+
           console.log('🔍 LINE connection check result:', {
             hasData: !!lineData,
             error: lineError,
@@ -78,7 +78,7 @@ export default function SettingsPage() {
               created_at: lineData.created_at
             } : null
           });
-          
+
           if (!lineError && lineData) {
             setLineConnected(true);
             setLineSettings(lineData);
@@ -86,14 +86,14 @@ export default function SettingsPage() {
           } else {
             setLineConnected(false);
             console.log('⚠️ LINE not connected or error:', lineError?.message || 'No data found');
-            
+
             // デバッグ: ユーザーの全レコードをチェック
             const { data: allRecords } = await supabase
               .from('line_notifications')
               .select('id, enabled, line_user_id, is_friend, created_at')
               .eq('user_id', session.user.id)
               .order('created_at', { ascending: false });
-            
+
             console.log('🔍 All LINE records for user:', allRecords?.map(r => ({
               id: r.id,
               enabled: r.enabled,
@@ -113,7 +113,7 @@ export default function SettingsPage() {
         setCheckingAuth(false);
       }
     };
-    
+
     checkAuthStatus();
   }, [supabase, router]);
 
@@ -132,15 +132,15 @@ export default function SettingsPage() {
           }
         }
       });
-      
+
       if (error) throw error;
-      
+
       // OAuth flow will redirect, so we don't need to update state here
-       message.info('Google認証にリダイレクト中...');
+      message.info('Google認証にリダイレクト中...');
     } catch (error: unknown) {
       console.error('Google OAuth error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-       message.error(`Googleカレンダーの連携に失敗しました: ${errorMessage}`);
+      message.error(`Googleカレンダーの連携に失敗しました: ${errorMessage}`);
       setGoogleLoading(false);
     }
   };
@@ -152,10 +152,10 @@ export default function SettingsPage() {
       // This would require backend implementation to clear the provider_token
       // For now, we'll just update the UI state
       setGoogleConnected(false);
-       message.success('Googleカレンダーの連携を解除しました（トークンをローカルで削除）');
+      message.success('Googleカレンダーの連携を解除しました（トークンをローカルで削除）');
     } catch (error) {
       console.error('Error disconnecting Google:', error);
-       message.error('Googleカレンダーの切断に失敗しました');
+      message.error('Googleカレンダーの切断に失敗しました');
     } finally {
       setGoogleLoading(false);
     }
@@ -165,9 +165,9 @@ export default function SettingsPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      
+
       console.log('🔍 Refreshing LINE connection status for user:', session.user.id);
-      
+
       const { data: lineData, error: lineError } = await supabase
         .from('line_notifications')
         .select('id, line_user_id, enabled, line_display_name, is_friend, created_at, updated_at')
@@ -177,13 +177,13 @@ export default function SettingsPage() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       console.log('🔍 LINE refresh result:', {
         hasData: !!lineData,
         error: lineError,
         is_friend: lineData?.is_friend
       });
-      
+
       if (!lineError && lineData) {
         setLineConnected(true);
         setLineSettings(lineData);
@@ -202,15 +202,15 @@ export default function SettingsPage() {
     try {
       console.log('🔍 Checking friend status...');
       message.info('友達状態を確認中...');
-      
+
       const response = await fetch('/api/line/check-friend-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      
+
       const result = await response.json();
       console.log('🔍 Check friend status result:', result);
-      
+
       if (response.ok && result.success) {
         message.success(result.message);
         // LINE設定を再取得
@@ -235,7 +235,7 @@ export default function SettingsPage() {
       setLineLoading(false);
       return;
     }
-    
+
     setLineLoading(true);
     try {
       console.log('🔍 LINE Connect Debug - Frontend Start');
@@ -244,24 +244,24 @@ export default function SettingsPage() {
       console.log('🔍 Current lineSettings:', lineSettings);
       console.log('🔍 is_friend status:', lineSettings?.is_friend);
       console.log('🔍 lineConnected status:', lineConnected);
-      
+
       const response = await fetch('/api/line/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userEmail, reconnect })
       });
-      
+
       console.log('🔍 Connect API Response:', {
         status: response.status,
         ok: response.ok,
         headers: Object.fromEntries(response.headers.entries())
       });
-      
+
       const result = await response.json();
       console.log('🔍 Connect API Result:', result);
       console.log('🔍 oauthUrl present:', !!result.oauthUrl);
-      
-       if (response.ok && result.success) {
+
+      if (response.ok && result.success) {
         if (result.oauthUrl) {
           console.log('🔍 Redirecting to LINE OAuth URL:', result.oauthUrl);
           console.log('🔍 LINE Connect Debug - Frontend End (redirecting)');
@@ -311,7 +311,7 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userEmail })
       });
-      
+
       if (response.ok) {
         setLineConnected(false);
         message.success('LINE連携を解除しました');
@@ -340,22 +340,22 @@ export default function SettingsPage() {
   const integrations = [
     {
       id: 'google-calendar',
-       title: t('google_calendar'),
-       description: isGoogleAuth 
-         ? t('calendar_integration_available')
-         : t('sign_in_with_google_to_enable'),
+      title: t('google_calendar'),
+      description: isGoogleAuth
+        ? t('calendar_integration_available')
+        : t('sign_in_with_google_to_enable'),
       icon: <CalendarOutlined style={{ color: '#fadb14' }} />,
       connected: googleConnected,
       loading: googleLoading,
       disabled: googleLoading,
       onConnect: handleGoogleConnect,
-      onDisconnect: isGoogleAuth ? handleGoogleDisconnect : () => {},
+      onDisconnect: isGoogleAuth ? handleGoogleDisconnect : () => { },
       isGoogleCalendar: true,
     },
     {
       id: 'line',
       title: t('line'),
-      description: lineConnected && lineSettings?.is_friend === false 
+      description: lineConnected && lineSettings?.is_friend === false
         ? 'LINE連携済み（友だち追加が必要）'
         : t('line_description'),
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
@@ -372,186 +372,186 @@ export default function SettingsPage() {
   if (checkingAuth) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-          <Spin>{t('checking_auth_status')}</Spin>
+        <Spin>{t('checking_auth_status')}</Spin>
       </div>
     );
   }
 
-   const userMenuItems: MenuProps['items'] = [
-     { 
-       key: 'email', 
-       label: userEmail,
-       icon: <UserOutlined />,
-       disabled: true 
-     },
-     { 
-       key: 'auth_type', 
-        label: isGoogleAuth ? t('logged_in_with_google') : t('logged_in_with_email'),
-       icon: isGoogleAuth ? <GoogleOutlined /> : <UserOutlined />,
-       disabled: true 
-     },
-     { type: 'divider' },
-     { 
-       key: 'logout', 
-        label: t('logout'),
-       icon: <LogoutOutlined />,
-       onClick: handleLogout 
-     }
-   ];
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'email',
+      label: userEmail,
+      icon: <UserOutlined />,
+      disabled: true
+    },
+    {
+      key: 'auth_type',
+      label: isGoogleAuth ? t('logged_in_with_google') : t('logged_in_with_email'),
+      icon: isGoogleAuth ? <GoogleOutlined /> : <UserOutlined />,
+      disabled: true
+    },
+    { type: 'divider' },
+    {
+      key: 'logout',
+      label: t('logout'),
+      icon: <LogoutOutlined />,
+      onClick: handleLogout
+    }
+  ];
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-         <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
-         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+        <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
           <Button icon={<UserOutlined />}>
             {userEmail.split('@')[0]}
           </Button>
         </Dropdown>
       </div>
-      
-         <Card title={t('integrations')} variant="borderless">
-          <div className="ant-list ant-list-split">
-            {integrations.map((item) => (
-              <div key={item.id} className="ant-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <div className="ant-list-item-meta" style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                  <div className="ant-list-item-meta-avatar" style={{ marginRight: 16 }}>
-                    <Avatar icon={item.icon} style={{ backgroundColor: '#fff', border: '1px solid #f0f0f0', color: '#000' }} />
-                  </div>
-                  <div className="ant-list-item-meta-content">
-                    <h4 className="ant-list-item-meta-title" style={{ marginBottom: 4 }}>{item.title}</h4>
-                    <div className="ant-list-item-meta-description" style={{ color: 'rgba(0, 0, 0, 0.45)' }}>{item.description}</div>
-                     {item.id === 'line' && lineConnected && lineSettings?.is_friend === false && (
-                       <div style={{ marginTop: 8 }}>
-                         <div style={{ color: '#faad14', fontSize: '12px', marginBottom: 8 }}>
-                           ⚠️ 友だち追加が完了していません。メッセージを受信するには追加が必要です。
-                         </div>
-                         <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, padding: 12 }}>
-                           <div style={{ fontWeight: 'bold', marginBottom: 8 }}>友だち追加方法</div>
-                           <ol style={{ margin: 0, paddingLeft: 20, fontSize: '12px' }}>
-                             <li>LINEアプリを開く</li>
-                             <li>友だち追加 → QRコード読み取り</li>
-                             <li>以下のQRコードをスキャン</li>
-                           </ol>
-                            <div style={{ marginTop: 12, textAlign: 'center' }}>
-                              {/* QRコード生成 */}
-                              <div style={{ 
-                                width: 150, 
-                                height: 150, 
-                                margin: '0 auto',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}>
-                                <QRCodeSVG
-                                  value={process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon'}
-                                  size={150}
-                                  level="H"
-                                  includeMargin={false}
-                                  bgColor="#ffffff"
-                                  fgColor="#000000"
-                                />
-                              </div>
-                              <div style={{ marginTop: 8, fontSize: '11px', color: '#666' }}>
-                                ※ QRコードが読み取れない場合は、URLを直接開いてください
-                              </div>
-                            </div>
-                            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
-                              <Button
-                                type="primary"
-                                size="small"
-                                onClick={() => window.open(process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon', '_blank')}
-                              >
-                                LINEで友だち追加
-                              </Button>
-                               <Button
-                                 type="default"
-                                 size="small"
-                                 onClick={handleCheckFriendStatus}
-                                 loading={lineLoading}
-                                 disabled={lineLoading}
-                               >
-                                 状態を更新
-                               </Button>
-                            </div>
-                         </div>
-                       </div>
-                     )}
-                  </div>
-                </div>
-                 <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {item.isGoogleCalendar ? (
-                      // Google Calendar: Show status tag for Google auth users, button for email auth users
-                      isGoogleAuth ? (
-                        <Tag color="success" style={{ margin: 0 }}>連携可能</Tag>
-                      ) : (
-                        <Button 
-                          type="primary" 
-                          size="small"
-                          icon={<GoogleOutlined />}
-                          onClick={item.onConnect}
-                          loading={item.loading}
-                          disabled={item.disabled || item.loading}
-                        >
-                          Googleでサインイン
-                        </Button>
-                      )
-                    ) : (
-                     // LINE: Keep existing switch and button
-                     <>
-                       <Switch 
-                         checkedChildren="連携中" 
-                         unCheckedChildren="未連携" 
-                         checked={item.connected}
-                         onChange={(checked) => checked ? item.onConnect() : item.onDisconnect()}
-                         loading={item.loading}
-                         disabled={item.disabled || item.loading}
-                       />
-                       <Button 
-                         type="default" 
-                         size="small"
-                         icon={item.connected ? <DisconnectOutlined /> : <LinkOutlined />}
-                         onClick={item.connected ? item.onDisconnect : item.onConnect}
-                         loading={item.loading}
-                         disabled={item.disabled || item.loading}
-                       >
-                         {item.connected ? '切断' : '接続'}
-                       </Button>
-                     </>
-                   )}
-                 </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 16, padding: 12, background: isGoogleAuth ? '#f6ffed' : '#fffbe6', border: isGoogleAuth ? '1px solid #b7eb8f' : '1px solid #ffe58f', borderRadius: 4 }}>
-             <Typography.Text type="secondary">
-                {isGoogleAuth ? (
-                  <><strong>{t('attention')}:</strong> {t('note_google_calendar_enabled')}</>
-                ) : (
-                  <><strong>{t('restriction')}:</strong> {t('restriction_google_calendar_requires_login')}</>
-                )}
-             </Typography.Text>
-           </div>
-         </Card>
 
-          <Card title={t('display_settings')} variant="borderless" style={{ marginTop: 24 }}>
-           <div style={{ maxWidth: 400 }}>
-             <div style={{ marginBottom: 16 }}>
-                <Typography.Text strong>{t('language')}</Typography.Text>
-               <Select
-                 value={language}
-                 onChange={setLanguage}
-                 style={{ width: 200, marginTop: 8 }}
-               >
-                 <Select.Option value="ja">日本語</Select.Option>
-                 <Select.Option value="en">English</Select.Option>
-               </Select>
-               <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                 {t('language_description')}
-               </Typography.Text>
-             </div>
-           </div>
-         </Card>
-     </div>
-   );
- }
+      <Card title={t('integrations')} variant="borderless" className="wafu-card">
+        <div className="ant-list ant-list-split">
+          {integrations.map((item) => (
+            <div key={item.id} className="ant-list-item brush-border-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+              <div className="ant-list-item-meta" style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <div className="ant-list-item-meta-avatar" style={{ marginRight: 16 }}>
+                  <Avatar icon={item.icon} style={{ backgroundColor: 'var(--background)', border: '1px solid currentColor', color: 'var(--foreground)' }} />
+                </div>
+                <div className="ant-list-item-meta-content">
+                  <h4 className="ant-list-item-meta-title" style={{ marginBottom: 4, fontFamily: 'var(--font-serif)' }}>{item.title}</h4>
+                  <div className="ant-list-item-meta-description" style={{ color: 'rgba(0, 0, 0, 0.45)' }}>{item.description}</div>
+                  {item.id === 'line' && lineConnected && lineSettings?.is_friend === false && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ color: '#faad14', fontSize: '12px', marginBottom: 8 }}>
+                        ⚠️ 友だち追加が完了していません。メッセージを受信するには追加が必要です。
+                      </div>
+                      <div style={{ background: 'rgba(183, 235, 143, 0.2)', border: '1px solid #b7eb8f', borderRadius: 4, padding: 12 }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>友だち追加方法</div>
+                        <ol style={{ margin: 0, paddingLeft: 20, fontSize: '12px' }}>
+                          <li>LINEアプリを開く</li>
+                          <li>友だち追加 → QRコード読み取り</li>
+                          <li>以下のQRコードをスキャン</li>
+                        </ol>
+                        <div style={{ marginTop: 12, textAlign: 'center' }}>
+                          {/* QRコード生成 */}
+                          <div style={{
+                            width: 150,
+                            height: 150,
+                            margin: '0 auto',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <QRCodeSVG
+                              value={process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon'}
+                              size={150}
+                              level="H"
+                              includeMargin={false}
+                              bgColor="#ffffff"
+                              fgColor="#000000"
+                            />
+                          </div>
+                          <div style={{ marginTop: 8, fontSize: '11px', color: '#666' }}>
+                            ※ QRコードが読み取れない場合は、URLを直接開いてください
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+                          <Button
+                            type="primary"
+                            size="small"
+                            onClick={() => window.open(process.env.NEXT_PUBLIC_LINE_FRIEND_URL || 'https://lin.ee/z7uMKon', '_blank')}
+                          >
+                            LINEで友だち追加
+                          </Button>
+                          <Button
+                            type="default"
+                            size="small"
+                            onClick={handleCheckFriendStatus}
+                            loading={lineLoading}
+                            disabled={lineLoading}
+                          >
+                            状態を更新
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ marginLeft: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                {item.isGoogleCalendar ? (
+                  // Google Calendar: Show status tag for Google auth users, button for email auth users
+                  isGoogleAuth ? (
+                    <Tag color="success" style={{ margin: 0 }}>連携可能</Tag>
+                  ) : (
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<GoogleOutlined />}
+                      onClick={item.onConnect}
+                      loading={item.loading}
+                      disabled={item.disabled || item.loading}
+                    >
+                      Googleでサインイン
+                    </Button>
+                  )
+                ) : (
+                  // LINE: Keep existing switch and button
+                  <>
+                    <Switch
+                      checkedChildren="連携中"
+                      unCheckedChildren="未連携"
+                      checked={item.connected}
+                      onChange={(checked) => checked ? item.onConnect() : item.onDisconnect()}
+                      loading={item.loading}
+                      disabled={item.disabled || item.loading}
+                    />
+                    <Button
+                      type="default"
+                      size="small"
+                      icon={item.connected ? <DisconnectOutlined /> : <LinkOutlined />}
+                      onClick={item.connected ? item.onDisconnect : item.onConnect}
+                      loading={item.loading}
+                      disabled={item.disabled || item.loading}
+                    >
+                      {item.connected ? '切断' : '接続'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 16, padding: 12, background: isGoogleAuth ? 'rgba(183, 235, 143, 0.1)' : 'rgba(255, 251, 230, 0.5)', border: isGoogleAuth ? '1px solid #b7eb8f' : '1px solid #ffe58f', borderRadius: 4 }}>
+          <Typography.Text type="secondary">
+            {isGoogleAuth ? (
+              <><strong>{t('attention')}:</strong> {t('note_google_calendar_enabled')}</>
+            ) : (
+              <><strong>{t('restriction')}:</strong> {t('restriction_google_calendar_requires_login')}</>
+            )}
+          </Typography.Text>
+        </div>
+      </Card>
+
+      <Card title={t('display_settings')} variant="borderless" style={{ marginTop: 24 }} className="wafu-card">
+        <div style={{ maxWidth: 400 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text strong>{t('language')}</Typography.Text>
+            <Select
+              value={language}
+              onChange={setLanguage}
+              style={{ width: 200, marginTop: 8 }}
+            >
+              <Select.Option value="ja">日本語</Select.Option>
+              <Select.Option value="en">English</Select.Option>
+            </Select>
+            <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+              {t('language_description')}
+            </Typography.Text>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}

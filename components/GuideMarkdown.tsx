@@ -97,11 +97,11 @@ const GuideMarkdown: React.FC<GuideMarkdownProps> = ({ content }) => {
     // Handle blockquotes
     blockquote: ({ children }) => (
       <blockquote style={{
-        borderLeft: '4px solid #1890ff',
+        borderLeft: '4px solid var(--primary)',
         margin: '12px 0',
         padding: '4px 0 4px 16px',
-        background: '#fafafa',
-        color: 'rgba(0, 0, 0, 0.65)'
+        background: 'rgba(0,0,0,0.03)',
+        color: 'var(--foreground)'
       }}>
         {children}
       </blockquote>
