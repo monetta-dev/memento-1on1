@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Typography, Card, Switch, Avatar, Button, message, Spin, Dropdown, Tag, Select } from 'antd';
-import type { MenuProps } from 'antd';
-import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, LogoutOutlined, UserOutlined, GoogleOutlined } from '@ant-design/icons';
+import { Typography, Card, Switch, Avatar, Button, message, Spin, Tag, Select } from 'antd';
+import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, GoogleOutlined } from '@ant-design/icons';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -342,16 +341,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      message.success('ログアウトしました');
-      router.push('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      message.error('ログアウトに失敗しました');
-    }
-  };
+
 
   const integrations = [
     {
@@ -393,38 +383,12 @@ export default function SettingsPage() {
     );
   }
 
-  const userMenuItems: MenuProps['items'] = [
-    {
-      key: 'email',
-      label: userEmail,
-      icon: <UserOutlined />,
-      disabled: true
-    },
-    {
-      key: 'auth_type',
-      label: isGoogleAuth ? t('logged_in_with_google') : t('logged_in_with_email'),
-      icon: isGoogleAuth ? <GoogleOutlined /> : <UserOutlined />,
-      disabled: true
-    },
-    { type: 'divider' },
-    {
-      key: 'logout',
-      label: t('logout'),
-      icon: <LogoutOutlined />,
-      onClick: handleLogout
-    }
-  ];
+
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
-        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-          <Button icon={<UserOutlined />}>
-            {userEmail.split('@')[0]}
-          </Button>
-        </Dropdown>
-      </div>
+      <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
+
 
       <Card title={t('integrations')} variant="borderless" className="wafu-card">
         <div className="ant-list ant-list-split">
@@ -568,6 +532,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
-    </div>
+    </div >
   );
 }

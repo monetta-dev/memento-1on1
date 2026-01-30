@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Layout, Menu, Button, Avatar } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Button, Avatar, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   UserOutlined,
   VideoCameraOutlined,
@@ -10,15 +11,49 @@ import {
   MenuUnfoldOutlined,
   MenuFoldOutlined,
   BookOutlined,
+  LogoutOutlined,
+  GoogleOutlined,
 } from '@ant-design/icons';
+import { createClientComponentClient } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 import { usePathname, useRouter } from 'next/navigation';
 
 const { Header, Sider, Content } = Layout;
 
 const AppShell = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setUser(session.user);
+          setIsGoogleAuth(!!session.provider_token);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    getUser();
+  }, [supabase]);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   // Determine selected key based on path
   const getSelectedKey = () => {
@@ -56,6 +91,36 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
     },
   ];
 
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'email',
+      label: user?.email || '',
+      icon: <UserOutlined />,
+      disabled: true,
+      style: { color: 'rgba(0, 0, 0, 0.88)', cursor: 'default' }
+    },
+    {
+      key: 'auth_type',
+      label: isGoogleAuth ? 'Googleでログイン中' : 'メールアドレスでログイン中',
+      icon: isGoogleAuth ? <GoogleOutlined /> : <UserOutlined />,
+      disabled: true,
+      style: { color: 'rgba(0, 0, 0, 0.45)', cursor: 'default' }
+    },
+    { type: 'divider' },
+    {
+      key: 'settings_link',
+      label: '設定',
+      icon: <SettingOutlined />,
+      onClick: () => router.push('/settings')
+    },
+    {
+      key: 'logout',
+      label: 'ログアウト',
+      icon: <LogoutOutlined />,
+      onClick: handleLogout
+    }
+  ];
+
   // If in session, maybe we don't want the sidebar? 
   // The requirement implies a web app, usually session is full screen or focused.
   // But for now, I'll keep it consistent or simple.
@@ -67,17 +132,17 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-       <Sider trigger={null} collapsible collapsed={collapsed} style={{ background: '#fff' }}>
+      <Sider trigger={null} collapsible collapsed={collapsed} style={{ background: '#fff' }}>
         <div style={{ height: 32, margin: 16, background: 'rgba(0, 0, 0, 0.2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {!collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>Memento 1on1</span>}
-            {collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>M</span>}
+          {!collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>Memento 1on1</span>}
+          {collapsed && <span style={{ fontWeight: 'bold', color: '#333' }}>M</span>}
         </div>
-         <Menu
-           mode="inline"
-           defaultSelectedKeys={['dashboard']}
-           selectedKeys={[getSelectedKey()]}
-           items={items}
-         />
+        <Menu
+          mode="inline"
+          defaultSelectedKeys={['dashboard']}
+          selectedKeys={[getSelectedKey()]}
+          items={items}
+        />
       </Sider>
       <Layout>
         <Header style={{ padding: 0, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 24 }}>
@@ -92,8 +157,14 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-             <span style={{ fontWeight: 500 }}>管理者</span>
-            <Avatar icon={<UserOutlined />} />
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', transition: 'all 0.2s' }} className="hover:bg-gray-100">
+                <span style={{ fontWeight: 500 }}>
+                  {loading ? '読み込み中...' : (user?.email?.split('@')[0] || 'ユーザー')}
+                </span>
+                <Avatar src={user?.user_metadata?.avatar_url} icon={!user?.user_metadata?.avatar_url && <UserOutlined />} />
+              </div>
+            </Dropdown>
           </div>
         </Header>
         <Content
