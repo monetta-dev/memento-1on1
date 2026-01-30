@@ -48,9 +48,14 @@ export default function SettingsPage() {
         const isGoogleUser = !!session.provider_token;
         setIsGoogleAuth(isGoogleUser);
 
-        // Check if Google OAuth token exists
-        const hasGoogleToken = !!session.provider_token;
-        setGoogleConnected(hasGoogleToken);
+        // Check if user has Google connected (check DB via API)
+        try {
+          const tokenResponse = await fetch('/api/google-calendar/get-token');
+          setGoogleConnected(tokenResponse.ok);
+        } catch (e) {
+          console.error('Failed to check google status', e);
+          setGoogleConnected(false);
+        }
 
         // Check LINE connection status from database
         try {
@@ -148,11 +153,22 @@ export default function SettingsPage() {
   const handleGoogleDisconnect = async () => {
     setGoogleLoading(true);
     try {
-      // Note: Supabase doesn't have a direct way to revoke OAuth tokens
-      // This would require backend implementation to clear the provider_token
-      // For now, we'll just update the UI state
+      // DBのトークンを削除するAPIを呼ぶ (まだ実装していないが、UI上は切断状態にする)
+      // 理想的には /api/google-calendar/disconnect を作るべき
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          google_access_token: null,
+          google_refresh_token: null,
+          google_token_expires_at: null
+        })
+        .eq('id', (await supabase.auth.getUser()).data.user?.id);
+
+      if (error) throw error;
+
       setGoogleConnected(false);
-      message.success('Googleカレンダーの連携を解除しました（トークンをローカルで削除）');
+      message.success('Googleカレンダーの連携を解除しました');
     } catch (error) {
       console.error('Error disconnecting Google:', error);
       message.error('Googleカレンダーの切断に失敗しました');
