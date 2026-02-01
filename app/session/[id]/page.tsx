@@ -564,6 +564,8 @@ export default function SessionPage() {
                   onConnect={onConnect}
                   onNodeDoubleClick={onNodeDoubleClick}
                   handleAddNode={handleAddNode}
+                  setNodes={setNodes}
+                  setEdges={setEdges}
                 />
               </div>
             )}
