@@ -20,6 +20,7 @@ import {
   EnterOutlined
 } from '@ant-design/icons';
 import '@xyflow/react/dist/style.css';
+import { getLayoutedElements } from './layoutUtils';
 
 type CustomNode = Node<{ label: string }>;
 
@@ -68,6 +69,35 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     }
   }, [isRenameModalOpen]);
 
+  // Auto-layout effect
+  // We need to run layout when nodes/edges count changes or structure updates.
+  // To avoid loops with onNodesChange, we might want to run this only when we strictly add/remove
+  // or use a separate effect that detects structural changes.
+  // For simplicity and robustness given "no manual move", we can enforce layout whenever nodes/edges differ from a layouted state.
+  // However, running it on every render/change can be heavy.
+  // Let's wrap adding nodes with layout calculation instead.
+
+  // NOTE: Integrating layout into the add/delete functions is cleaner than a purely reactive useEffect 
+  // that might fight with React Flow's internal state if not careful.
+
+  const applyAutoLayout = useCallback((currentNodes: CustomNode[], currentEdges: Edge[]) => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      currentNodes,
+      currentEdges
+    );
+    // We cast back to CustomNode[] assuming dagre doesn't lose our data structure
+    setNodes([...layoutedNodes] as CustomNode[]);
+    setEdges([...layoutedEdges]);
+  }, [setNodes, setEdges]);
+
+  // Initial layout on mount if needed (or if data loaded from external source)
+  // useEffect(() => {
+  //   if (nodes.length > 0) {
+  //      applyAutoLayout(nodes, edges);
+  //   }
+  // }, []); 
+  // Keep it simple: Apply layout when modifying structure.
+
   const getSelectedNode = useCallback(() => {
     return getNodes().find((n) => n.selected);
   }, [getNodes]);
@@ -79,7 +109,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     const newNodeId = Date.now().toString();
     const newNode: CustomNode = {
       id: newNodeId,
-      position: { x: parentNode.position.x + 200, y: parentNode.position.y }, // Simple offset right
+      position: { x: 0, y: 0 }, // Position will be handled by auto-layout
       data: { label: 'New Topic' },
       type: 'default',
     };
@@ -90,47 +120,51 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       target: newNodeId,
     };
 
-    setNodes((nds) => [...nds, newNode]);
-    setEdges((eds) => [...eds, newEdge]);
+    const updatedNodes = [...getNodes(), newNode] as CustomNode[];
+    const updatedEdges = [...getEdges(), newEdge];
+
+    applyAutoLayout(updatedNodes, updatedEdges);
 
     // Auto-open rename modal
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getSelectedNode, setNodes, setEdges]);
+  }, [getSelectedNode, getNodes, getEdges, applyAutoLayout]);
 
   const addSiblingNode = useCallback(() => {
     const selectedNode = getSelectedNode();
     if (!selectedNode) return;
 
     const parentEdge = getEdges().find((e) => e.target === selectedNode.id);
-    // If no parent (root node), add sibling slightly below
-    // If parent exists, add sibling linked to same parent
 
     const newNodeId = Date.now().toString();
     const newNode: CustomNode = {
       id: newNodeId,
-      position: { x: selectedNode.position.x, y: selectedNode.position.y + 100 }, // Simple offset down
+      position: { x: 0, y: 0 },
       data: { label: 'Sibling Topic' },
       type: 'default',
     };
 
-    setNodes((nds) => [...nds, newNode]);
-
+    let updatedEdges = getEdges();
     if (parentEdge) {
       const newEdge: Edge = {
         id: `e${parentEdge.source}-${newNodeId}`,
         source: parentEdge.source,
         target: newNodeId,
       };
-      setEdges((eds) => [...eds, newEdge]);
+      updatedEdges = [...updatedEdges, newEdge];
+    } else {
+      // Root sibling logic if needed, or just add node
     }
+
+    const updatedNodes = [...getNodes(), newNode] as CustomNode[];
+    applyAutoLayout(updatedNodes, updatedEdges);
 
     // Auto-open rename modal
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getSelectedNode, getEdges, setNodes, setEdges]);
+  }, [getSelectedNode, getNodes, getEdges, applyAutoLayout]);
 
   const deleteSelectedNodes = useCallback(() => {
     const selectedNodes = getNodes().filter(n => n.selected);
@@ -138,9 +172,11 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
 
     const selectedIds = new Set(selectedNodes.map(n => n.id));
 
-    setNodes((nds) => nds.filter((n) => !selectedIds.has(n.id)));
-    setEdges((eds) => eds.filter((e) => !selectedIds.has(e.source) && !selectedIds.has(e.target)));
-  }, [getNodes, setNodes, setEdges]);
+    const remainingNodes = getNodes().filter((n) => !selectedIds.has(n.id)) as CustomNode[];
+    const remainingEdges = getEdges().filter((e) => !selectedIds.has(e.source) && !selectedIds.has(e.target));
+
+    applyAutoLayout(remainingNodes, remainingEdges);
+  }, [getNodes, getEdges, applyAutoLayout]);
 
   const onNodeDoubleClickInternal = useCallback((event: React.MouseEvent, node: CustomNode) => {
     if (isReadOnly) return;
@@ -214,7 +250,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         onEdgesChange={isReadOnly ? undefined : onEdgesChange}
         onConnect={isReadOnly ? undefined : onConnect}
         onNodeDoubleClick={isReadOnly ? undefined : onNodeDoubleClickInternal}
-        nodesDraggable={!isReadOnly}
+        nodesDraggable={false} // Disable manual dragging
         nodesConnectable={!isReadOnly}
         elementsSelectable={!isReadOnly}
         fitView

@@ -21,7 +21,8 @@ vi.mock('@xyflow/react', async (importOriginal) => {
       onNodesChange,
       onEdgesChange,
       onConnect,
-      onNodeDoubleClick
+      onNodeDoubleClick,
+      nodesDraggable
     }: {
       children?: React.ReactNode;
       nodes?: unknown[];
@@ -30,11 +31,13 @@ vi.mock('@xyflow/react', async (importOriginal) => {
       onEdgesChange?: unknown;
       onConnect?: (params: unknown) => void;
       onNodeDoubleClick?: (event: React.MouseEvent, node: unknown) => void;
+      nodesDraggable?: boolean;
     }) => (
       <div
         data-testid="react-flow"
         data-nodes-count={(nodes || []).length}
         data-edges-count={(edges || []).length}
+        data-nodes-draggable={nodesDraggable}
       >
         {children}
         {onConnect && <button onClick={() => onConnect({ source: '1', target: '2' })}>Simulate connect</button>}
@@ -128,6 +131,12 @@ describe('MindMapPanel', () => {
     const reactFlow = screen.getByTestId('react-flow');
     expect(reactFlow).toHaveAttribute('data-nodes-count', '2');
     expect(reactFlow).toHaveAttribute('data-edges-count', '1');
+  });
+
+  it('should have node dragging disabled', () => {
+    render(<MindMapPanel {...defaultProps} />);
+    const reactFlow = screen.getByTestId('react-flow');
+    expect(reactFlow).toHaveAttribute('data-nodes-draggable', 'false');
   });
 
   it('should render toolbar buttons', () => {
