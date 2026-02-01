@@ -15,6 +15,8 @@ type CustomNode = Node<{
 // Common stubs for React Flow hooks
 const mockGetNodes = vi.fn<() => any[]>(() => []);
 const mockGetEdges = vi.fn<() => any[]>(() => []);
+const mockSetCenter = vi.fn();
+const mockGetViewport = vi.fn<() => { x: number, y: number, zoom: number }>(() => ({ x: 0, y: 0, zoom: 1 }));
 
 // Mock @xyflow/react
 vi.mock('@xyflow/react', async (importOriginal) => {
@@ -57,6 +59,8 @@ vi.mock('@xyflow/react', async (importOriginal) => {
     useReactFlow: () => ({
       getNodes: mockGetNodes,
       getEdges: mockGetEdges,
+      setCenter: mockSetCenter,
+      getViewport: mockGetViewport,
     }),
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
   };
@@ -152,7 +156,7 @@ describe('MindMapPanel', () => {
     expect(screen.getByText('兄弟追加')).toBeInTheDocument();
   });
 
-  it('should call setNodes when "Child Add" button is clicked', async () => {
+  it('should call setNodes and setCenter and select NEW node when "Child Add" button is clicked', async () => {
     const user = userEvent.setup();
     render(<MindMapPanel {...defaultProps} />);
 
@@ -161,6 +165,19 @@ describe('MindMapPanel', () => {
 
     expect(mockSetNodes).toHaveBeenCalled();
     expect(mockSetEdges).toHaveBeenCalled();
+    expect(mockSetCenter).toHaveBeenCalled();
+
+    // Verify selection logic
+    // The last call to setNodes should contain the new node with selected: true
+    // And previous nodes deselected.
+    const lastCallArg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0] as CustomNode[];
+    // Find the new node (id won't be 1 or 2, likely timestamp)
+    const newNode = lastCallArg.find(n => n.id !== '1' && n.id !== '2');
+    const oldNode = lastCallArg.find(n => n.id === '1');
+
+    expect(newNode).toBeDefined();
+    expect(newNode?.selected).toBe(true);
+    expect(oldNode?.selected).toBe(false);
   });
 
   it('should call setNodes when "Sibling Add" button is clicked', async () => {
@@ -213,6 +230,16 @@ describe('MindMapPanel', () => {
     expect(await screen.findByText('トピック名の編集')).toBeInTheDocument();
     const cancelBtn2 = screen.getByText('キャンセル');
     fireEvent.click(cancelBtn2);
+    await waitFor(() => expect(screen.queryByText('トピック名の編集')).not.toBeInTheDocument());
+
+    // Space -> Rename
+    fireEvent.keyDown(container!, { key: ' ' });
+    // Expect modal to open
+    expect(await screen.findByText('トピック名の編集')).toBeInTheDocument();
+
+    // Close modal
+    const cancelBtn3 = screen.getByText('キャンセル');
+    fireEvent.click(cancelBtn3);
     await waitFor(() => expect(screen.queryByText('トピック名の編集')).not.toBeInTheDocument());
 
     // Delete -> Delete Selected
@@ -285,7 +312,7 @@ describe('MindMapPanel', () => {
     }, { timeout: 2000 });
   });
 
-  it('should navigate nodes with arrow keys', async () => {
+  it('should navigate nodes with arrow keys and PAN to new node', async () => {
     // Setup a small tree: 1 (Root) -> 2 (Child), 3 (Child)
     // 2 is above 3
     const mockNodesNav: Node[] = [
@@ -311,6 +338,10 @@ describe('MindMapPanel', () => {
 
     fireEvent.keyDown(container!, { key: 'ArrowRight' });
     expect(mockSetNodes).toHaveBeenCalled();
+
+    // Verify PANNING triggered
+    expect(mockSetCenter).toHaveBeenCalled();
+
     // We expect checking the functional update, but simplistic call check is enough for "hooked up".
 
     // Let's assume selection logic is correct if compiled (logic is sound). 
@@ -394,6 +425,39 @@ describe('MindMapPanel', () => {
     const parentNode = newNodesArg.find(n => n.id === '1');
     expect(parentNode).toBeDefined();
     expect(parentNode?.selected).toBe(true);
+  });
+
+  it('should recursively delete descendant nodes (cascading deletion)', async () => {
+    // Setup: Root (1) -> Child (2) -> Grandchild (3)
+    const mockNodesCas: CustomNode[] = [
+      { id: '1', type: 'default', position: { x: 0, y: 0 }, data: { label: 'Root' }, selected: false },
+      { id: '2', type: 'default', position: { x: 100, y: 0 }, data: { label: 'Child' }, selected: true }, // Targeted
+      { id: '3', type: 'default', position: { x: 200, y: 0 }, data: { label: 'Grandchild' }, selected: false },
+    ];
+    const mockEdgesCas: Edge[] = [
+      { id: 'e1-2', source: '1', target: '2' },
+      { id: 'e2-3', source: '2', target: '3' },
+    ];
+
+    mockGetNodes.mockReturnValue(mockNodesCas);
+    mockGetEdges.mockReturnValue(mockEdgesCas);
+
+    render(<MindMapPanel {...defaultProps} nodes={mockNodesCas} edges={mockEdgesCas} />);
+    const container = screen.getByTestId('react-flow').parentElement;
+
+    // Delete "Child" (2). "Grandchild" (3) should also be deleted.
+    fireEvent.keyDown(container!, { key: 'Delete' });
+
+    expect(mockSetNodes).toHaveBeenCalled();
+    const remainingNodes = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0] as CustomNode[];
+
+    const childExists = remainingNodes.some(n => n.id === '2');
+    const grandchildExists = remainingNodes.some(n => n.id === '3');
+    const rootExists = remainingNodes.some(n => n.id === '1');
+
+    expect(childExists).toBe(false);
+    expect(grandchildExists).toBe(false); // Cascading check
+    expect(rootExists).toBe(true);
   });
 
   it('should obey strict navigation rules (no auto-collapse)', async () => {

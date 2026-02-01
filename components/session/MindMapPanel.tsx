@@ -55,7 +55,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   setEdges,
   isReadOnly = false,
 }) => {
-  const { getNodes, getEdges } = useReactFlow();
+  const { getNodes, getEdges, setCenter, getViewport } = useReactFlow();
 
   // Renaming state
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -75,7 +75,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   }, [isRenameModalOpen]);
 
   // Declare applyAutoLayout and toggleNodeExpansion using refs to break circular dependency
-  const applyAutoLayoutRef = useRef<(currentNodes: CustomNode[], currentEdges: Edge[]) => void>(() => { });
+  const applyAutoLayoutRef = useRef<(currentNodes: CustomNode[], currentEdges: Edge[], focusNodeId?: string) => void>(() => { });
   const toggleNodeExpansionRef = useRef<(nodeId: string, expand?: boolean) => void>(() => { });
 
   // Expand/Collapse logic
@@ -102,7 +102,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   }, [toggleNodeExpansion]);
 
   // Auto-layout with visibility handling
-  const applyAutoLayout = useCallback((currentNodes: CustomNode[], currentEdges: Edge[]) => {
+  const applyAutoLayout = useCallback((currentNodes: CustomNode[], currentEdges: Edge[], focusNodeId?: string) => {
     // 0. Inject live data helpers (hasChildren, onToggle)
     // We need to ensure every node has the onToggle callback and correct hasChildren state
     // strictly speaking, we should do this when nodes/edges change, but doing it here ensures consistency before layout.
@@ -155,7 +155,22 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
 
     setNodes(finalNodes);
     setEdges(currentEdges);
-  }, [setNodes, setEdges]);
+
+    if (focusNodeId) {
+      const focusNode = finalNodes.find(n => n.id === focusNodeId);
+      if (focusNode && focusNode.position) {
+        // Center the view on the new node
+        // Assuming default node width/height if not measured yet, but layout usually provides it.
+        // We focus on the node's position.
+        const x = focusNode.position.x + (focusNode.width || 150) / 2;
+        const y = focusNode.position.y + (focusNode.height || 40) / 2;
+
+        // Preserve current zoom
+        const { zoom } = getViewport();
+        setCenter(x, y, { duration: 800, zoom });
+      }
+    }
+  }, [setNodes, setEdges, setCenter, getViewport]);
 
   // Update ref whenever applyAutoLayout changes
   useEffect(() => {
@@ -249,6 +264,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       position: { x: 0, y: 0 }, // Position will be handled by auto-layout
       data: { label: 'New Topic' },
       type: 'default',
+      selected: true, // Auto-select new node
     };
 
     const newEdge: Edge = {
@@ -257,10 +273,12 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       target: newNodeId,
     };
 
-    const updatedNodes = [...getNodes(), newNode] as CustomNode[];
+    // Deselect other nodes
+    const currentNodes = getNodes().map(n => ({ ...n, selected: false }));
+    const updatedNodes = [...currentNodes, newNode] as CustomNode[];
     const updatedEdges = [...getEdges(), newEdge];
 
-    applyAutoLayout(updatedNodes, updatedEdges);
+    applyAutoLayout(updatedNodes, updatedEdges, newNodeId);
 
     // Auto-open rename modal
     setEditingNodeId(newNodeId);
@@ -280,6 +298,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       position: { x: 0, y: 0 },
       data: { label: 'Sibling Topic' },
       type: 'default',
+      selected: true, // Auto-select new node
     };
 
     let updatedEdges = getEdges();
@@ -294,8 +313,10 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       // Root sibling logic if needed, or just add node
     }
 
-    const updatedNodes = [...getNodes(), newNode] as CustomNode[];
-    applyAutoLayout(updatedNodes, updatedEdges);
+    // Deselect other nodes
+    const currentNodes = getNodes().map(n => ({ ...n, selected: false }));
+    const updatedNodes = [...currentNodes, newNode] as CustomNode[];
+    applyAutoLayout(updatedNodes, updatedEdges, newNodeId);
 
     // Auto-open rename modal
     setEditingNodeId(newNodeId);
@@ -315,23 +336,39 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     // Exception: If we decide to allow deleting roots if they are not the *initial* root, 
     // but typically "Root" implies the main topic. 
     // This logic protects ALL roots (any node with no parent).
-    const nodesToDelete = selectedNodes.filter(n => incomingEdgeTargets.has(n.id));
+    const directNodesToDelete = selectedNodes.filter(n => incomingEdgeTargets.has(n.id));
 
-    if (nodesToDelete.length === 0) return;
+    if (directNodesToDelete.length === 0) return;
 
-    const nodesToDeleteIds = new Set(nodesToDelete.map(n => n.id));
+    // Recursive helper to find all descendants
+    const getDescendants = (nodeIds: string[], accumulated: Set<string> = new Set()): Set<string> => {
+      const children = currentEdges
+        .filter(e => nodeIds.includes(e.source))
+        .map(e => e.target);
 
-    // Find parent to focus after deletion
+      if (children.length === 0) return accumulated;
+
+      const newChildren = children.filter(id => !accumulated.has(id));
+      newChildren.forEach(id => accumulated.add(id));
+
+      return getDescendants(newChildren, accumulated);
+    };
+
+    // Collect all descendants for cascading deletion
+    const descendants = getDescendants(directNodesToDelete.map(n => n.id));
+    const allIdsToDelete = new Set([...directNodesToDelete.map(n => n.id), ...descendants]);
+
+    // Find parent to focus after deletion logic needs to consider the *top-most* deleted nodes
+    // We prioritize the parent of the first *direct* deleted node
     let parentIdToFocus: string | undefined;
-    // We prioritize the parent of the first deleted node
-    const firstDeletedNode = nodesToDelete[0];
+    const firstDeletedNode = directNodesToDelete[0];
     const parentEdge = currentEdges.find(e => e.target === firstDeletedNode.id);
     if (parentEdge) {
       parentIdToFocus = parentEdge.source;
     }
 
     const remainingNodes = getNodes()
-      .filter((n) => !nodesToDeleteIds.has(n.id))
+      .filter((n) => !allIdsToDelete.has(n.id))
       .map(n => {
         // If this node is the identified parent and currently exists (wasn't deleted), select it
         // Also clear selection for others to ensure single focus behavior
@@ -341,7 +378,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         return { ...n, selected: false };
       }) as CustomNode[];
 
-    const remainingEdges = getEdges().filter((e) => !nodesToDeleteIds.has(e.source) && !nodesToDeleteIds.has(e.target));
+    const remainingEdges = getEdges().filter((e) => !allIdsToDelete.has(e.source) && !allIdsToDelete.has(e.target));
 
     applyAutoLayout(remainingNodes, remainingEdges);
   }, [getNodes, getEdges, applyAutoLayout]);
@@ -444,8 +481,17 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         ...n,
         selected: n.id === nextNodeId
       })));
+
+      // Auto-pan to next node
+      const nextNode = currentNodes.find(n => n.id === nextNodeId);
+      if (nextNode && nextNode.position) {
+        const x = nextNode.position.x + (nextNode.width || 150) / 2;
+        const y = nextNode.position.y + (nextNode.height || 40) / 2;
+        const { zoom } = getViewport();
+        setCenter(x, y, { duration: 300, zoom });
+      }
     }
-  }, [getNodes, getEdges, getSelectedNode, setNodes, toggleNodeExpansion]);
+  }, [getNodes, getEdges, getSelectedNode, setNodes, toggleNodeExpansion, setCenter, getViewport]);
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     if (isReadOnly || isRenameModalOpen) return;
@@ -455,28 +501,36 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     if (isInput) return;
 
     switch (event.key) {
-      case 'Tab':
-        event.preventDefault();
+      case 'Tab': // Insert child
+        event.preventDefault(); // Prevent focus change
         addChildNode();
         break;
-      case 'Enter':
+      case 'Enter': // Insert sibling
         event.preventDefault();
         addSiblingNode();
         break;
+      case 'Delete': // Delete
       case 'Backspace':
-      case 'Delete':
-        event.preventDefault(); // Prevent browser back navigation
         deleteSelectedNodes();
         break;
-      case 'ArrowLeft':
-      case 'ArrowRight':
+      case ' ': // Space: Rename
+        event.preventDefault(); // Prevent scrolling
+        const selectedNode = getSelectedNode();
+        if (selectedNode) {
+          setEditingNodeId(selectedNode.id);
+          setEditingLabel(selectedNode.data.label);
+          setIsRenameModalOpen(true);
+        }
+        break;
       case 'ArrowUp':
       case 'ArrowDown':
+      case 'ArrowLeft':
+      case 'ArrowRight':
         event.preventDefault();
         moveSelection(event.key);
         break;
     }
-  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes, moveSelection]);
+  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes, moveSelection, getSelectedNode]);
 
   return (
     <div
