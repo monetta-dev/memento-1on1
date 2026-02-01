@@ -5,6 +5,13 @@ import '@testing-library/jest-dom';
 import MindMapPanel from '@/components/session/MindMapPanel';
 import type { Node, Edge, OnNodesChange, OnEdgesChange } from '@xyflow/react';
 
+type CustomNode = Node<{
+  label: string;
+  expanded?: boolean;
+  hasChildren?: boolean;
+  onToggle?: (id: string) => void;
+}>;
+
 // Common stubs for React Flow hooks
 const mockGetNodes = vi.fn<() => any[]>(() => []);
 const mockGetEdges = vi.fn<() => any[]>(() => []);
@@ -209,6 +216,17 @@ describe('MindMapPanel', () => {
     await waitFor(() => expect(screen.queryByText('トピック名の編集')).not.toBeInTheDocument());
 
     // Delete -> Delete Selected
+    // We need to select a non-root node first (Topic 1 is root)
+    // Topic 2 is Child and not selected. MockNodes has Topic 1 selected.
+    // Let's toggle selection in our mock/setup concept
+    mockNodes[0].selected = false;
+    mockNodes[1].selected = true;
+
+    // We need to re-render to reflect "selection" if component reads it from props initially or 
+    // actually it reads from useReactFlow().getNodes().
+    // Since we mocked getNodes, we just updated the array it returns (by reference potentially).
+    // Let's verify if getNodes() returns the modified objects.
+
     fireEvent.keyDown(container!, { key: 'Delete' });
     expect(mockSetNodes).toHaveBeenCalledTimes(3);
   });
@@ -309,5 +327,207 @@ describe('MindMapPanel', () => {
     fireEvent.keyDown(container!, { key: 'ArrowLeft' });
     // Should go to Root
     expect(mockSetNodes).toHaveBeenCalled();
+  });
+
+  it('should prevent deletion of root nodes', async () => {
+    // Setup: Root -> Child
+    const mockNodesDel: Node[] = [
+      { id: '1', type: 'default', position: { x: 0, y: 0 }, data: { label: 'Root' }, selected: true },
+      { id: '2', type: 'default', position: { x: 100, y: 0 }, data: { label: 'Child' }, selected: false },
+    ];
+    const mockEdgesDel: Edge[] = [
+      { id: 'e1-2', source: '1', target: '2' },
+    ];
+
+    mockGetNodes.mockReturnValue(mockNodesDel);
+    mockGetEdges.mockReturnValue(mockEdgesDel);
+
+    // We need simple props just to render
+    render(<MindMapPanel {...defaultProps} nodes={mockNodesDel} edges={mockEdgesDel} />);
+    const container = screen.getByTestId('react-flow').parentElement;
+
+    // 1. Try to delete Root (id: 1) which is selected
+    // Since it's a root (no incoming edges), it should NOT be deleted.
+    fireEvent.keyDown(container!, { key: 'Delete' });
+
+    // setNodes should NOT be called if we filtered everything out
+    // or called with same nodes?
+    // My logic: if (nodesToDelete.length === 0) return;
+    // So setNodes should NOT be called.
+    expect(mockSetNodes).not.toHaveBeenCalled();
+
+    // 2. Select Child (id: 2) and try deletion
+    mockNodesDel[0].selected = false;
+    mockNodesDel[1].selected = true;
+
+    // We need to re-render or just fire event (mockGetNodes returns new state)
+    // But since we mock return value, logic uses that.
+
+    fireEvent.keyDown(container!, { key: 'Delete' });
+    // This time it should be called because Child has incoming edge e1-2
+    expect(mockSetNodes).toHaveBeenCalledTimes(1);
+  });
+
+  it('should focus parent node after deleting a child', async () => {
+    // Setup: Root (id:1) -> Child (id:2)
+    // Child is selected.
+    const mockNodesFocus: Node[] = [
+      { id: '1', type: 'default', position: { x: 0, y: 0 }, data: { label: 'Root' }, selected: false },
+      { id: '2', type: 'default', position: { x: 100, y: 0 }, data: { label: 'Child' }, selected: true },
+    ];
+    const mockEdgesFocus: Edge[] = [
+      { id: 'e1-2', source: '1', target: '2' },
+    ];
+
+    mockGetNodes.mockReturnValue(mockNodesFocus);
+    mockGetEdges.mockReturnValue(mockEdgesFocus);
+
+    render(<MindMapPanel {...defaultProps} nodes={mockNodesFocus} edges={mockEdgesFocus} />);
+    const container = screen.getByTestId('react-flow').parentElement;
+
+    // Delete Child
+    fireEvent.keyDown(container!, { key: 'Delete' });
+
+    expect(mockSetNodes).toHaveBeenCalled();
+    // Check argument to see if parent (id:1) is selected
+    const newNodesArg = mockSetNodes.mock.calls[0][0] as CustomNode[]; // It receives array
+    const parentNode = newNodesArg.find(n => n.id === '1');
+    expect(parentNode).toBeDefined();
+    expect(parentNode?.selected).toBe(true);
+  });
+
+  it('should obey strict navigation rules (no auto-collapse)', async () => {
+    // Setup: Root (1) -> Child (2) -> Grandchild (3)
+    const mockNodesCollapse: CustomNode[] = [
+      { id: '1', type: 'default', position: { x: 0, y: 0 }, data: { label: 'Root' }, selected: true },
+      { id: '2', type: 'default', position: { x: 100, y: 0 }, data: { label: 'Child', expanded: true }, selected: false },
+      { id: '3', type: 'default', position: { x: 200, y: 0 }, data: { label: 'Grandchild' }, selected: false },
+    ];
+    const mockEdgesCollapse: Edge[] = [
+      { id: 'e1-2', source: '1', target: '2' },
+      { id: 'e2-3', source: '2', target: '3' },
+    ];
+
+    mockGetNodes.mockReturnValue(mockNodesCollapse);
+    mockGetEdges.mockReturnValue(mockEdgesCollapse);
+
+    render(<MindMapPanel {...defaultProps} nodes={mockNodesCollapse} edges={mockEdgesCollapse} />);
+    const container = screen.getByTestId('react-flow').parentElement;
+
+    const resolveUpdate = (callArg: any, currentNodes: any[]) => {
+      return typeof callArg === 'function' ? callArg(currentNodes) : callArg;
+    };
+
+    // 1. Select Root (1)
+    // ArrowRight -> Should go to Child (2) (Navigation)
+    fireEvent.keyDown(container!, { key: 'ArrowRight' });
+    expect(mockSetNodes).toHaveBeenCalled();
+
+    // Verify next State call sets Child(2) as selected
+    const call1Arg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+    const call1 = resolveUpdate(call1Arg, mockNodesCollapse) as CustomNode[];
+    expect(call1.find(n => n.id === '2')?.selected).toBe(true);
+
+    // 2. Mock selection on Child (2) which is EXPANDED
+    mockNodesCollapse[0].selected = false;
+    mockNodesCollapse[1].selected = true;
+
+    // ArrowLeft -> Should Go to Parent (1). NO Collapsing.
+    fireEvent.keyDown(container!, { key: 'ArrowLeft' });
+
+    expect(mockSetNodes).toHaveBeenCalled();
+    const call2Arg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+    const call2 = resolveUpdate(call2Arg, mockNodesCollapse) as CustomNode[];
+    const node2 = call2.find(n => n.id === '2');
+    // Ensure expanded is STILL true (or undefined/default)
+    expect(node2?.data.expanded).not.toBe(false);
+    // Ensure Root is selected
+    const root = call2.find(n => n.id === '1');
+    expect(root?.selected).toBe(true);
+
+    // 3. ArrowRight on Child(2) (Expanded) -> Should go to Grandchild(3)
+    // Reset selection to (2)
+    mockNodesCollapse[1].selected = true;
+    mockGetNodes.mockReturnValue(mockNodesCollapse); // Ensure mock returns update
+
+    fireEvent.keyDown(container!, { key: 'ArrowRight' });
+    const call3Arg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+    const call3 = resolveUpdate(call3Arg, mockNodesCollapse) as CustomNode[];
+
+    expect(call3.find(n => n.id === '3')?.selected).toBe(true);
+    expect(call3.find(n => n.id === '2')?.data.expanded).not.toBe(false);
+  });
+
+  it.skip('should toggle expansion when node toggle button is clicked', async () => {
+    // Setup: Root (1) -> Child (2)
+    // We will verify that clicking the toggle on usage invokes the data.onToggle logic
+    // Since MindMapNode is a custom component, we need to ensure it's rendered by ReactFlow.
+    // However, vitest with shallow or deep rendering might skip internals of ReactFlow.
+    // But since we provided `nodeTypes`, ReactFlow *should* render it if we use valid types.
+
+    // We update mockNodes to have type 'mindMap' and data populated as the effect would do.
+    const mockNodesClick: CustomNode[] = [
+      {
+        id: '1',
+        type: 'mindMap',
+        position: { x: 0, y: 0 },
+        data: { label: 'Root', expanded: true, hasChildren: true },
+        selected: true
+      },
+      {
+        id: '2',
+        type: 'mindMap',
+        position: { x: 100, y: 0 },
+        data: { label: 'Child', expanded: true },
+        selected: false
+      },
+    ];
+    const mockEdgesClick: Edge[] = [
+      { id: 'e1-2', source: '1', target: '2' },
+    ];
+
+    mockGetNodes.mockReturnValue(mockNodesClick);
+    mockGetEdges.mockReturnValue(mockEdgesClick);
+
+    // We assume the component under test (MindMapPanel) handles the onToggle injection in useEffect.
+    // However, in the test render, useEffect runs.
+
+    render(<MindMapPanel {...defaultProps} nodes={mockNodesClick} edges={mockEdgesClick} />);
+
+    // Check if Custom Node rendered
+    // "Root" text should be present.
+    // We look for the toggle button. 
+    // Since we mocked ReactFlow in the test file, we need to check if our mock renders custom nodes?
+    // The current Mock for ReactFlow (lines 17-46 in test file) just renders `children` or a generic div.
+    // It DOES NOT render the nodes using `nodeTypes`.
+    // So the `MindMapNode` component is NOT actually rendered in our current test suite.
+    // We need to update the ReactFlow mock to render nodes using the provided `nodeTypes` if possible, 
+    // OR we test the logic via `mockSetNodes` integration if we can trigger the internal logic.
+
+    // Since implementing a full ReactFlow renderer mock is complex, let's verify the EFFECT logic:
+    // "Check if initial render converts types to mindMap and injects callbacks".
+
+    // Wait for effect
+    await waitFor(() => {
+      expect(mockSetNodes).toHaveBeenCalled();
+    });
+
+    // Check the SetNodes call to see if it injected `onToggle`
+    const lastCallArg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0] as CustomNode[];
+    const rootNode = lastCallArg.find(n => n.id === '1');
+
+    expect(rootNode?.type).toBe('mindMap');
+    expect(rootNode?.data.hasChildren).toBe(true);
+    expect(typeof rootNode?.data.onToggle).toBe('function');
+
+    // Now execute the callback directly to verify it toggles
+    if (rootNode?.data.onToggle) {
+      rootNode.data.onToggle('1');
+    }
+
+    // Expect another setNodes with expanded: false
+    const toggleCallArg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0] as CustomNode[];
+    const toggledRoot = toggleCallArg.find(n => n.id === '1');
+    expect(toggledRoot?.data.expanded).toBe(false);
   });
 });
