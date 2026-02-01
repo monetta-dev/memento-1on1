@@ -17,7 +17,9 @@ import {
   PlusCircleOutlined,
   NodeIndexOutlined,
   DeleteOutlined,
-  EnterOutlined
+  EnterOutlined,
+  UndoOutlined,
+  RedoOutlined
 } from '@ant-design/icons';
 import '@xyflow/react/dist/style.css';
 import MindMapNode, { MindMapNodeData } from './MindMapNode';
@@ -30,6 +32,11 @@ const nodeTypes = {
 
 // Update CustomNode definition to match MindMapNodeData but compatible with ReactFlow Node
 type CustomNode = Node<MindMapNodeData>;
+
+interface HistoryState {
+  nodes: CustomNode[];
+  edges: Edge[];
+}
 
 interface MindMapPanelProps {
   nodes: CustomNode[];
@@ -49,13 +56,17 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   edges,
   onNodesChange,
   onEdgesChange,
-  onConnect,
+  onConnect: originalOnConnect,
   onNodeDoubleClick: externalOnNodeDoubleClick,
   setNodes,
   setEdges,
   isReadOnly = false,
 }) => {
-  const { getNodes, getEdges, setCenter, getViewport } = useReactFlow();
+  const { getNodes, getEdges, setCenter, getViewport } = useReactFlow<CustomNode, Edge>();
+
+  // History State
+  const [past, setPast] = useState<HistoryState[]>([]);
+  const [future, setFuture] = useState<HistoryState[]>([]);
 
   // Renaming state
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -78,8 +89,62 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   const applyAutoLayoutRef = useRef<(currentNodes: CustomNode[], currentEdges: Edge[], focusNodeId?: string) => void>(() => { });
   const toggleNodeExpansionRef = useRef<(nodeId: string, expand?: boolean) => void>(() => { });
 
+  // --- Undo/Redo Logic ---
+  const takeSnapshot = useCallback(() => {
+    // We snapshot the current *received* props or current internal state via react-flow getter?
+    // Using props (nodes, edges) ensures we capture what is currently rendered.
+    // However, for consistency with 'getNodes' usage in modifiers, ensure we are capturing the latest.
+    // Since 'nodes' prop is updated by parent, it *shouble* wait for render.
+    // BUT modifiers (addChild) run *before* the next render.
+    // So we should snapshot the PREVIOUS state implies we snapshot *right now* before modifying.
+    const currentNodes = getNodes() as CustomNode[];
+    const currentEdges = getEdges();
+    setPast(prev => [...prev, { nodes: currentNodes, edges: currentEdges }]);
+    setFuture([]);
+  }, [getNodes, getEdges]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, past.length - 1);
+
+    setPast(newPast);
+    setFuture(prev => [{ nodes: getNodes() as CustomNode[], edges: getEdges() }, ...prev]);
+
+    setNodes(previous.nodes);
+    setEdges(previous.edges);
+
+    // Close modal if open (e.g. undoing a node add that opened modal)
+    setIsRenameModalOpen(false);
+    setEditingNodeId(null);
+  }, [past, getNodes, getEdges, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    const newFuture = future.slice(1);
+
+    setFuture(newFuture);
+    setPast(prev => [...prev, { nodes: getNodes() as CustomNode[], edges: getEdges() }]);
+
+    setNodes(next.nodes);
+    setEdges(next.edges);
+
+    // Close modal if open
+    setIsRenameModalOpen(false);
+    setEditingNodeId(null);
+  }, [future, getNodes, getEdges, setNodes, setEdges]);
+
+
   // Expand/Collapse logic
   const toggleNodeExpansion = useCallback((nodeId: string, expand?: boolean) => {
+    // Collapse is a visual state change, ideally valuable to undo?
+    // Let's decide NO for now to match typical strict undo (content changes).
+    // Actually, user might expect undo for collapse.
+    // Let's snapshot for now? No, the user request usually implies Undo/Redo for CONTENT (add/delete/rename/move).
+    // If we snapshot here, it might be spammy if merely browsing.
+    // Let's Skip snapshotting for expansion for now unless requested.
+
     const currentNodes = getNodes() as CustomNode[];
     const currentEdges = getEdges();
 
@@ -255,27 +320,30 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
 
 
   const addChildNode = useCallback(() => {
-    const parentNode = getSelectedNode();
-    if (!parentNode) return;
+    takeSnapshot(); // Snapshot
+    const currentNodes = getNodes();
+    const selectedNode = currentNodes.find(n => n.selected);
 
-    const newNodeId = Date.now().toString();
+    if (!selectedNode) return;
+
+    const newNodeId = `${Date.now()}`;
     const newNode: CustomNode = {
       id: newNodeId,
-      position: { x: 0, y: 0 }, // Position will be handled by auto-layout
-      data: { label: 'New Topic' },
-      type: 'default',
+      position: { x: selectedNode.position.x + 200, y: selectedNode.position.y },
+      data: { label: 'New Topic', expanded: true },
+      type: 'mindMap',
       selected: true, // Auto-select new node
     };
 
     const newEdge: Edge = {
-      id: `e${parentNode.id}-${newNodeId}`,
-      source: parentNode.id,
+      id: `e${selectedNode.id}-${newNodeId}`,
+      source: selectedNode.id,
       target: newNodeId,
     };
 
     // Deselect other nodes
-    const currentNodes = getNodes().map(n => ({ ...n, selected: false }));
-    const updatedNodes = [...currentNodes, newNode] as CustomNode[];
+    const deselectNodes = currentNodes.map(n => ({ ...n, selected: false }));
+    const updatedNodes = [...deselectNodes, newNode] as CustomNode[];
     const updatedEdges = [...getEdges(), newEdge];
 
     applyAutoLayout(updatedNodes, updatedEdges, newNodeId);
@@ -284,45 +352,49 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getSelectedNode, getNodes, getEdges, applyAutoLayout]);
+  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
 
   const addSiblingNode = useCallback(() => {
-    const selectedNode = getSelectedNode();
+    takeSnapshot(); // Snapshot
+    const currentNodes = getNodes();
+    const currentEdges = getEdges();
+    const selectedNode = currentNodes.find(n => n.selected);
+
     if (!selectedNode) return;
 
-    const parentEdge = getEdges().find((e) => e.target === selectedNode.id);
+    // Find parent
+    const parentEdge = currentEdges.find(e => e.target === selectedNode.id);
 
-    const newNodeId = Date.now().toString();
+    if (!parentEdge) return; // Cannot add sibling to root (unless we handle root siblings?)
+
+    const parentNodeId = parentEdge.source;
+    const newNodeId = `${Date.now()}`;
     const newNode: CustomNode = {
       id: newNodeId,
-      position: { x: 0, y: 0 },
-      data: { label: 'Sibling Topic' },
-      type: 'default',
-      selected: true, // Auto-select new node
+      position: { x: selectedNode.position.x, y: selectedNode.position.y + 100 },
+      data: { label: 'New Topic', expanded: true },
+      type: 'mindMap',
+      selected: true, // Auto-select
     };
 
-    let updatedEdges = getEdges();
-    if (parentEdge) {
-      const newEdge: Edge = {
-        id: `e${parentEdge.source}-${newNodeId}`,
-        source: parentEdge.source,
-        target: newNodeId,
-      };
-      updatedEdges = [...updatedEdges, newEdge];
-    } else {
-      // Root sibling logic if needed, or just add node
-    }
+    const newEdge: Edge = {
+      id: `e${parentNodeId}-${newNodeId}`,
+      source: parentNodeId,
+      target: newNodeId,
+    };
 
     // Deselect other nodes
-    const currentNodes = getNodes().map(n => ({ ...n, selected: false }));
-    const updatedNodes = [...currentNodes, newNode] as CustomNode[];
+    const deselectNodes = currentNodes.map(n => ({ ...n, selected: false }));
+    const updatedNodes = [...deselectNodes, newNode] as CustomNode[];
+    const updatedEdges = [...currentEdges, newEdge];
+
     applyAutoLayout(updatedNodes, updatedEdges, newNodeId);
 
     // Auto-open rename modal
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getSelectedNode, getNodes, getEdges, applyAutoLayout]);
+  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
 
   const deleteSelectedNodes = useCallback(() => {
     const selectedNodes = getNodes().filter(n => n.selected);
@@ -339,6 +411,8 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     const directNodesToDelete = selectedNodes.filter(n => incomingEdgeTargets.has(n.id));
 
     if (directNodesToDelete.length === 0) return;
+
+    takeSnapshot(); // Snapshot before delete
 
     // Recursive helper to find all descendants
     const getDescendants = (nodeIds: string[], accumulated: Set<string> = new Set()): Set<string> => {
@@ -381,7 +455,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     const remainingEdges = getEdges().filter((e) => !allIdsToDelete.has(e.source) && !allIdsToDelete.has(e.target));
 
     applyAutoLayout(remainingNodes, remainingEdges);
-  }, [getNodes, getEdges, applyAutoLayout]);
+  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
 
   const onNodeDoubleClickInternal = useCallback((event: React.MouseEvent, node: CustomNode) => {
     if (isReadOnly) return;
@@ -402,6 +476,8 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   const handleRenameSave = useCallback(() => {
     if (!editingNodeId) return;
 
+    takeSnapshot(); // Snapshot
+
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === editingNodeId) {
@@ -421,7 +497,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     setIsRenameModalOpen(false);
     setEditingNodeId(null);
     setEditingLabel('');
-  }, [editingNodeId, editingLabel, setNodes]);
+  }, [editingNodeId, editingLabel, setNodes, takeSnapshot]);
 
   const moveSelection = useCallback((key: string) => {
     const selectedNode = getSelectedNode() as CustomNode | undefined;
@@ -495,12 +571,52 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     }
   }, [getNodes, getEdges, getSelectedNode, setNodes, toggleNodeExpansion, setCenter, getViewport]);
 
-  const onKeyDown = useCallback((event: KeyboardEvent) => {
+  // Wrapper for onConnect to snapshot
+  const handleOnConnect = useCallback((params: Connection) => {
+    takeSnapshot();
+    originalOnConnect(params);
+  }, [takeSnapshot, originalOnConnect]);
+
+  // Handle Drag Start for Snapshot
+  // We can't easily hook into onNodeDragStart passed to ReactFlow unless we wrap it?
+  // But wait, ReactFlow props onNodeDragStart needs to be here.
+  const onNodeDragStart = useCallback(() => {
+    takeSnapshot();
+  }, [takeSnapshot]);
+
+
+  const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+
     if (isReadOnly || isRenameModalOpen) return;
 
+    // Check if input is focused (again, just safety)
     const activeElement = document.activeElement;
     const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+
     if (isInput) return;
+
+    // Undo/Redo shortcuts
+    // Undo/Redo shortcuts
+    const isCtrl = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+
+    // Ctrl+Z (Undo)
+    if (isCtrl && key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      undo();
+      return;
+    }
+
+    // Ctrl+Y or Ctrl+Shift+Z (Redo)
+    const isRedoKey = key === 'y' || (key === 'z' && event.shiftKey);
+
+
+    if (isCtrl && isRedoKey) {
+
+      event.preventDefault();
+      redo();
+      return;
+    }
 
     switch (event.key) {
       case 'Tab': // Insert child
@@ -520,7 +636,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         const selectedNode = getSelectedNode();
         if (selectedNode) {
           setEditingNodeId(selectedNode.id);
-          setEditingLabel(selectedNode.data.label);
+          setEditingLabel(selectedNode.data.label as string);
           setIsRenameModalOpen(true);
         }
         break;
@@ -532,7 +648,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         moveSelection(event.key);
         break;
     }
-  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes, moveSelection, getSelectedNode]);
+  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes, moveSelection, getSelectedNode, undo, redo]);
 
   return (
     <div
@@ -545,7 +661,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={handleOnConnect}
         onNodeDoubleClick={onNodeDoubleClickInternal}
         onKeyDown={onKeyDown}
         fitView
@@ -561,10 +677,28 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         {!isReadOnly && (
           <Panel position="top-center">
             <Space>
+              <Tooltip title="元に戻す (Ctrl+Z)">
+                <Button
+                  icon={<UndoOutlined />}
+                  onClick={undo}
+                  disabled={past.length === 0}
+                  aria-label="元に戻す"
+                />
+              </Tooltip>
+              <Tooltip title="やり直す (Ctrl+ Shift+Z)">
+                <Button
+                  icon={<RedoOutlined />}
+                  onClick={redo}
+                  disabled={future.length === 0}
+                  aria-label="やり直す"
+                />
+              </Tooltip>
+              <div style={{ width: 1, height: 24, background: '#eee', margin: '0 8px' }} /> {/* Separator */}
               <Tooltip title="子トピックを追加 (Tab)">
                 <Button
                   icon={<NodeIndexOutlined />}
                   onClick={addChildNode}
+                  aria-label="子追加"
                 >
                   子追加
                 </Button>
@@ -573,6 +707,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
                 <Button
                   icon={<EnterOutlined style={{ transform: 'scaleX(-1)' }} />}
                   onClick={addSiblingNode}
+                  aria-label="兄弟追加"
                 >
                   兄弟追加
                 </Button>
@@ -582,6 +717,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
                   icon={<DeleteOutlined />}
                   danger
                   onClick={deleteSelectedNodes}
+                  aria-label="削除"
                 />
               </Tooltip>
               {/* Fallback 'Reset/Add Root' logic could go here if list empty */}
