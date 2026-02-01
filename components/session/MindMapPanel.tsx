@@ -211,6 +211,69 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     setEditingLabel('');
   }, [editingNodeId, editingLabel, setNodes]);
 
+  const moveSelection = useCallback((key: string) => {
+    const selectedNode = getSelectedNode();
+    if (!selectedNode) return;
+
+    const currentNodes = getNodes();
+    const currentEdges = getEdges();
+
+    let nextNodeId: string | undefined;
+
+    if (key === 'ArrowLeft') {
+      // Navigate to parent
+      const parentEdge = currentEdges.find(e => e.target === selectedNode.id);
+      if (parentEdge) {
+        nextNodeId = parentEdge.source;
+      }
+    } else if (key === 'ArrowRight') {
+      // Navigate to first child (middle preferred or top)
+      // Let's sort children by Y to be consistent
+      const childEdges = currentEdges.filter(e => e.source === selectedNode.id);
+      if (childEdges.length > 0) {
+        const childNodes = currentNodes.filter(n => childEdges.some(e => e.target === n.id));
+        childNodes.sort((a, b) => a.position.y - b.position.y);
+        // Select the middle one for better UX, or just the first
+        const middleIndex = Math.floor(childNodes.length / 2);
+        nextNodeId = childNodes[middleIndex].id;
+      }
+    } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+      // Navigate between siblings
+      const parentEdge = currentEdges.find(e => e.target === selectedNode.id);
+
+      let siblings: CustomNode[] = [];
+      if (parentEdge) {
+        // Has parent, find other children of same parent
+        const siblingEdges = currentEdges.filter(e => e.source === parentEdge.source);
+        siblings = currentNodes.filter(n => siblingEdges.some(e => e.target === n.id));
+      } else {
+        // Root nodes (no incoming edges)
+        // Identify all root nodes
+        const nonRootIds = new Set(currentEdges.map(e => e.target));
+        siblings = currentNodes.filter(n => !nonRootIds.has(n.id));
+      }
+
+      // Sort by Y
+      siblings.sort((a, b) => a.position.y - b.position.y);
+
+      const currentIndex = siblings.findIndex(n => n.id === selectedNode.id);
+      if (currentIndex !== -1) {
+        if (key === 'ArrowUp' && currentIndex > 0) {
+          nextNodeId = siblings[currentIndex - 1].id;
+        } else if (key === 'ArrowDown' && currentIndex < siblings.length - 1) {
+          nextNodeId = siblings[currentIndex + 1].id;
+        }
+      }
+    }
+
+    if (nextNodeId) {
+      setNodes((nds) => nds.map(n => ({
+        ...n,
+        selected: n.id === nextNodeId
+      })));
+    }
+  }, [getNodes, getEdges, getSelectedNode, setNodes]);
+
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     if (isReadOnly || isRenameModalOpen) return;
 
@@ -234,8 +297,15 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         event.preventDefault(); // Prevent browser back navigation
         deleteSelectedNodes();
         break;
+      case 'ArrowLeft':
+      case 'ArrowRight':
+      case 'ArrowUp':
+      case 'ArrowDown':
+        event.preventDefault();
+        moveSelection(event.key);
+        break;
     }
-  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes]);
+  }, [isReadOnly, isRenameModalOpen, addChildNode, addSiblingNode, deleteSelectedNodes, moveSelection]);
 
   return (
     <div
