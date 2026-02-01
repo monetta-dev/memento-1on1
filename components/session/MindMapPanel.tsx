@@ -407,13 +407,15 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         if (node.id === editingNodeId) {
           return {
             ...node,
+            selected: true, // Restore/Enforce selection
             data: {
               ...node.data,
               label: editingLabel,
             },
           };
         }
-        return node;
+        // Deselect all others to ensure single focus
+        return { ...node, selected: false };
       })
     );
     setIsRenameModalOpen(false);

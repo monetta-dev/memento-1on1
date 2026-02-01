@@ -272,10 +272,14 @@ describe('MindMapPanel', () => {
     // Antd Modal uses portals, so check for text in the document
     expect(await screen.findByText('トピック名の編集')).toBeInTheDocument();
 
-    // Find input and change value
+    // Find input
     const input = screen.getByRole('textbox');
-    await user.clear(input);
-    await user.type(input, 'Renamed Topic');
+
+    // Wait for auto-focus effect (100ms in component)
+    await waitFor(() => expect(input).toHaveFocus());
+
+    // Use fireEvent for more reliable value change in Antd Input + JSDOM
+    fireEvent.change(input, { target: { value: 'Renamed Topic' } });
 
     // Click Save
     // Ant Design might perform auto-spacing for 2-char CJK buttons (e.g. "保 存")
@@ -284,8 +288,22 @@ describe('MindMapPanel', () => {
 
     // Check if setNodes was called
     expect(mockSetNodes).toHaveBeenCalled();
-    // We can't easily check the structure of the setState callback without more complex mocking,
-    // but knowing it was called after "Save" is good signals.
+
+    // Verify that the renamed node is selected and others are not
+    // Handle functional update: setNodes(nds => ...)
+    const lastCallArg = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+    let resultingNodes: CustomNode[];
+
+    if (typeof lastCallArg === 'function') {
+      resultingNodes = lastCallArg(mockNodes);
+    } else {
+      resultingNodes = lastCallArg as CustomNode[];
+    }
+
+    const renamedNode = resultingNodes.find(n => n.id === '1'); // We edited node '1'
+    expect(renamedNode).toBeDefined();
+    expect(renamedNode?.data.label).toBe('Renamed Topic');
+    expect(renamedNode?.selected).toBe(true);
   });
 
   it('should auto-open modal when adding a child node', async () => {
