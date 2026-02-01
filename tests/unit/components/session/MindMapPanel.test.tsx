@@ -6,8 +6,8 @@ import MindMapPanel from '@/components/session/MindMapPanel';
 import type { Node, Edge, OnNodesChange, OnEdgesChange } from '@xyflow/react';
 
 // Common stubs for React Flow hooks
-const mockGetNodes = vi.fn<[], any[]>(() => []);
-const mockGetEdges = vi.fn<[], any[]>(() => []);
+const mockGetNodes = vi.fn<() => any[]>(() => []);
+const mockGetEdges = vi.fn<() => any[]>(() => []);
 
 // Mock @xyflow/react
 vi.mock('@xyflow/react', async (importOriginal) => {
@@ -245,8 +245,16 @@ describe('MindMapPanel', () => {
     // Modal should appear automatically
     expect(await screen.findByText('トピック名の編集')).toBeInTheDocument();
 
-    // Check initial value (should satisfy "New Topic")
+    // Check initial value
     const input = screen.getByRole('textbox');
     expect(input).toHaveValue('New Topic');
+
+    // Verify focus is requested (mocked)
+    // In JSDOM with our manual focus call + timeout, this might be tricky to test perfectly without timers.
+    // But we can check if document.activeElement is the input.
+    // We need to wait for the timeout in the component
+    await waitFor(() => {
+      expect(input).toHaveFocus();
+    }, { timeout: 2000 });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, KeyboardEvent, useState } from 'react';
+import React, { useCallback, KeyboardEvent, useState, useRef, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,7 +12,7 @@ import {
   useReactFlow,
   ReactFlowProvider
 } from '@xyflow/react';
-import { Button, Space, Tooltip, Modal, Input } from 'antd';
+import { Button, Space, Tooltip, Modal, Input, type InputRef } from 'antd';
 import {
   PlusCircleOutlined,
   NodeIndexOutlined,
@@ -54,6 +54,19 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
+  const inputRef = useRef<InputRef>(null);
+
+  // Auto-focus input when modal opens
+  useEffect(() => {
+    if (isRenameModalOpen) {
+      // Small delay to ensure Modal animation/mounting doesn't interfere with focus
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isRenameModalOpen]);
 
   const getSelectedNode = useCallback(() => {
     return getNodes().find((n) => n.selected);
@@ -72,7 +85,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     };
 
     const newEdge: Edge = {
-      id: `e${parentNode.id} -${newNodeId} `,
+      id: `e${parentNode.id}-${newNodeId}`,
       source: parentNode.id,
       target: newNodeId,
     };
@@ -257,10 +270,11 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         cancelText="キャンセル"
       >
         <Input
+          ref={inputRef}
           value={editingLabel}
           onChange={(e) => setEditingLabel(e.target.value)}
           onPressEnter={handleRenameSave}
-          autoFocus
+          autoFocus // Kept as backup, but ref logic is primary
         />
       </Modal>
     </div>
