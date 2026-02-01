@@ -22,6 +22,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
   subordinateName,
   onScheduled,
 }) => {
+  const [messageApi, contextHolder] = message.useMessage();
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs().add(7, 'day')); // Default: 1 week from now
   const [selectedTime, setSelectedTime] = useState<Dayjs | null>(dayjs().hour(14).minute(0)); // Default: 2 PM
   const [duration, setDuration] = useState<number>(60); // minutes, default 60
@@ -44,7 +45,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
 
   const handleSchedule = async () => {
     if (!selectedDate || !selectedTime) {
-      message.error('日付と時間を選択してください');
+      messageApi.error('日付と時間を選択してください');
       return;
     }
 
@@ -74,12 +75,12 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
 
       const result = await createGoogleCalendarEvent(eventData, 'primary');
       console.log('Google Calendar event created:', result);
-      
+
       // Save next session data to database for LINE reminders
       try {
         if (!userId) {
           console.warn('User ID not found, LINE reminders may not work for this session');
-          message.warning('ユーザーIDが見つかりません。LINEリマインダーが機能しない可能性があります。');
+          messageApi.warning('ユーザーIDが見つかりません。LINEリマインダーが機能しない可能性があります。');
         }
         await updateSession(sessionId, {
           nextSessionDate: startDateTime.toISOString(),
@@ -92,12 +93,12 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
       } catch (dbError: unknown) {
         console.error('Failed to update session with next session data:', dbError);
         // Don't fail the whole operation, just warn the user
-        message.warning('Googleカレンダーに追加しましたが、LINEリマインダーの設定に失敗しました。後で設定ページから再度試してください。');
+        messageApi.warning('Googleカレンダーに追加しましたが、LINEリマインダーの設定に失敗しました。後で設定ページから再度試してください。');
       }
-      
+
       setSuccess(true);
-      message.success('次回の1on1セッションをGoogleカレンダーに追加しました');
-      
+      messageApi.success('次回の1on1セッションをGoogleカレンダーに追加しました');
+
       if (onScheduled) {
         onScheduled();
       }
@@ -105,7 +106,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('Failed to schedule next meeting:', err);
       setError(errorMessage);
-      message.error(`スケジュール作成に失敗しました: ${errorMessage}`);
+      messageApi.error(`スケジュール作成に失敗しました: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -120,11 +121,12 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
 
   if (success) {
     return (
-      <Card 
-        title="次回の1on1セッションをスケジュール" 
+      <Card
+        title="次回の1on1セッションをスケジュール"
         style={{ marginBottom: 24 }}
         bordered={false}
       >
+        {contextHolder}
         <Alert
           message="スケジュール作成完了"
           description="Googleカレンダーに次回の1on1セッションを追加しました。"
@@ -141,11 +143,12 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
   }
 
   return (
-    <Card 
-      title="次回の1on1セッションをスケジュール" 
+    <Card
+      title="次回の1on1セッションをスケジュール"
       style={{ marginBottom: 24 }}
       bordered={false}
     >
+      {contextHolder}
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div>
           <Text strong>日付</Text>
@@ -157,7 +160,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
             placeholder="日付を選択"
           />
         </div>
-        
+
         <div>
           <Text strong>時間</Text>
           <TimePicker
@@ -169,7 +172,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
             placeholder="時間を選択"
           />
         </div>
-        
+
         <div>
           <Text strong>所要時間</Text>
           <Select
@@ -198,7 +201,7 @@ const ScheduleNextMeetingSection: React.FC<ScheduleNextMeetingSectionProps> = ({
 
         <Flex justify="space-between" align="center">
           <Text type="secondary">
-            {isGoogleAuth 
+            {isGoogleAuth
               ? 'Googleカレンダー連携が有効です。イベントが自動的に作成されます。'
               : 'Googleカレンダー連携が必要です。設定ページからGoogleでサインインしてください。'}
           </Text>
