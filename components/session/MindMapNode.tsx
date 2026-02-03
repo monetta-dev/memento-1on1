@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { PlusCircleOutlined, MinusCircleOutlined } from '@ant-design/icons';
 
 export interface MindMapNodeData extends Record<string, unknown> {
@@ -9,7 +9,9 @@ export interface MindMapNodeData extends Record<string, unknown> {
     onToggle?: (id: string) => void;
 }
 
-const MindMapNode = ({ id, data, isConnectable, selected }: NodeProps<MindMapNodeData>) => {
+export type CustomNode = Node<MindMapNodeData>;
+
+const MindMapNode = ({ id, data, isConnectable, selected }: NodeProps<CustomNode>) => {
     const { label, expanded = true, hasChildren, onToggle } = data;
 
     const handleToggle = (e: React.MouseEvent) => {
