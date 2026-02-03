@@ -11,13 +11,27 @@ import { useMindMapStore } from '@/store/useMindMapStore';
 import { useStore as useZundoStore } from 'zustand';
 
 import SessionHeader from '@/components/session/SessionHeader';
-import VideoPanel from '@/components/session/VideoPanel';
-import TranscriptionHandler from '@/components/TranscriptionHandler';
-import MindMapPanel from '@/components/session/MindMapPanel';
+
 import FaceToFaceDashboard from '@/components/session/FaceToFaceDashboard';
 import ControlsBar from '@/components/session/ControlsBar';
 import AdvicePanel from '@/components/session/AdvicePanel';
 import TranscriptPanel from '@/components/session/TranscriptPanel';
+
+import dynamic from 'next/dynamic';
+
+const VideoPanel = dynamic(() => import('@/components/session/VideoPanel'), {
+  loading: () => <div style={{ color: '#fff', textAlign: 'center', padding: 50 }}>ビデオ通話を準備中...</div>,
+  ssr: false
+});
+
+const TranscriptionHandler = dynamic(() => import('@/components/TranscriptionHandler'), {
+  ssr: false
+});
+
+const MindMapPanel = dynamic(() => import('@/components/session/MindMapPanel'), {
+  loading: () => <div style={{ textAlign: 'center', padding: 50 }}>マインドマップを読み込み中...</div>,
+  ssr: false
+});
 
 type CustomNode = Node<{ label: string }>;
 
