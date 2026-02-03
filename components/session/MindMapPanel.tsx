@@ -24,54 +24,56 @@ import {
 import '@xyflow/react/dist/style.css';
 import MindMapNode, { MindMapNodeData } from './MindMapNode';
 import { getLayoutedElements, getVisibleNodes } from './layoutUtils';
+import { useMindMapStore, type CustomNode } from '@/store/useMindMapStore';
+import { useStore as useZundoStore } from 'zustand';
+import type { NodeTypes } from '@xyflow/react';
 
-// Register custom node types
-const nodeTypes = {
-  mindMap: MindMapNode,
+// Register custom node types - Cast to NodeTypes to avoid strict prop checks
+const nodeTypes: NodeTypes = {
+  mindMap: MindMapNode as unknown as NodeTypes['mindMap'],
 };
 
-// Update CustomNode definition to match MindMapNodeData but compatible with ReactFlow Node
-type CustomNode = Node<MindMapNodeData>;
-
-interface HistoryState {
-  nodes: CustomNode[];
-  edges: Edge[];
-}
-
 interface MindMapPanelProps {
-  nodes: CustomNode[];
-  edges: Edge[];
-  onNodesChange: OnNodesChange<CustomNode>;
-  onEdgesChange: OnEdgesChange<Edge>;
-  onConnect: (params: Connection) => void;
-  onNodeDoubleClick?: (event: React.MouseEvent, node: CustomNode) => void;
-  handleAddNode: () => void;
-  setNodes: React.Dispatch<React.SetStateAction<CustomNode[]>>;
-  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   isReadOnly?: boolean;
 }
 
-const MindMapContent: React.FC<MindMapPanelProps> = ({
-  nodes,
-  edges,
-  onNodesChange,
-  onEdgesChange,
-  onConnect: originalOnConnect,
-  onNodeDoubleClick: externalOnNodeDoubleClick,
-  setNodes,
-  setEdges,
-  isReadOnly = false,
-}) => {
+const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => {
   const { getNodes, getEdges, setCenter, getViewport } = useReactFlow<CustomNode, Edge>();
 
-  // History State
-  const [past, setPast] = useState<HistoryState[]>([]);
-  const [future, setFuture] = useState<HistoryState[]>([]);
+  // Use Zundo Store
+  const nodes = useMindMapStore((state) => state.nodes);
+  const edges = useMindMapStore((state) => state.edges);
+  const onNodesChange = useMindMapStore((state) => state.onNodesChange);
+  const onEdgesChange = useMindMapStore((state) => state.onEdgesChange);
+  const setNodes = useMindMapStore((state) => state.setNodes);
+  const setEdges = useMindMapStore((state) => state.setEdges);
+  const setGraph = useMindMapStore((state) => state.setGraph);
+  const onConnectStore = useMindMapStore((state) => state.onConnect);
+
+  // Undo/Redo via Zundo temporal middleware
+  // Undo/Redo via Zundo temporal middleware
+  const undo = useZundoStore(useMindMapStore.temporal, (state) => state.undo);
+  const redo = useZundoStore(useMindMapStore.temporal, (state) => state.redo);
+  const pastStates = useZundoStore(useMindMapStore.temporal, (state) => state.pastStates);
+  const futureStates = useZundoStore(useMindMapStore.temporal, (state) => state.futureStates);
+  const pause = useZundoStore(useMindMapStore.temporal, (state) => state.pause);
+  const resume = useZundoStore(useMindMapStore.temporal, (state) => state.resume);
+
+  // DEBUG: Monitor History
+  useEffect(() => {
+    console.log('[MindMapPanel] Zundo History:', {
+      past: pastStates.length,
+      future: futureStates.length,
+      tracking: !useMindMapStore.temporal.getState().isTracking ? 'PAUSED' : 'ACTIVE'
+    });
+  }, [pastStates, futureStates]);
+
 
   // Renaming state
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
+  const [isCreatingNode, setIsCreatingNode] = useState(false);
   const inputRef = useRef<InputRef>(null);
 
   // Auto-focus input when modal opens
@@ -89,62 +91,9 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
   const applyAutoLayoutRef = useRef<(currentNodes: CustomNode[], currentEdges: Edge[], focusNodeId?: string) => void>(() => { });
   const toggleNodeExpansionRef = useRef<(nodeId: string, expand?: boolean) => void>(() => { });
 
-  // --- Undo/Redo Logic ---
-  const takeSnapshot = useCallback(() => {
-    // We snapshot the current *received* props or current internal state via react-flow getter?
-    // Using props (nodes, edges) ensures we capture what is currently rendered.
-    // However, for consistency with 'getNodes' usage in modifiers, ensure we are capturing the latest.
-    // Since 'nodes' prop is updated by parent, it *shouble* wait for render.
-    // BUT modifiers (addChild) run *before* the next render.
-    // So we should snapshot the PREVIOUS state implies we snapshot *right now* before modifying.
-    const currentNodes = getNodes() as CustomNode[];
-    const currentEdges = getEdges();
-    setPast(prev => [...prev, { nodes: currentNodes, edges: currentEdges }]);
-    setFuture([]);
-  }, [getNodes, getEdges]);
-
-  const undo = useCallback(() => {
-    if (past.length === 0) return;
-    const previous = past[past.length - 1];
-    const newPast = past.slice(0, past.length - 1);
-
-    setPast(newPast);
-    setFuture(prev => [{ nodes: getNodes() as CustomNode[], edges: getEdges() }, ...prev]);
-
-    setNodes(previous.nodes);
-    setEdges(previous.edges);
-
-    // Close modal if open (e.g. undoing a node add that opened modal)
-    setIsRenameModalOpen(false);
-    setEditingNodeId(null);
-  }, [past, getNodes, getEdges, setNodes, setEdges]);
-
-  const redo = useCallback(() => {
-    if (future.length === 0) return;
-    const next = future[0];
-    const newFuture = future.slice(1);
-
-    setFuture(newFuture);
-    setPast(prev => [...prev, { nodes: getNodes() as CustomNode[], edges: getEdges() }]);
-
-    setNodes(next.nodes);
-    setEdges(next.edges);
-
-    // Close modal if open
-    setIsRenameModalOpen(false);
-    setEditingNodeId(null);
-  }, [future, getNodes, getEdges, setNodes, setEdges]);
-
 
   // Expand/Collapse logic
   const toggleNodeExpansion = useCallback((nodeId: string, expand?: boolean) => {
-    // Collapse is a visual state change, ideally valuable to undo?
-    // Let's decide NO for now to match typical strict undo (content changes).
-    // Actually, user might expect undo for collapse.
-    // Let's snapshot for now? No, the user request usually implies Undo/Redo for CONTENT (add/delete/rename/move).
-    // If we snapshot here, it might be spammy if merely browsing.
-    // Let's Skip snapshotting for expansion for now unless requested.
-
     const currentNodes = getNodes() as CustomNode[];
     const currentEdges = getEdges();
 
@@ -159,7 +108,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
 
     // Re-apply layout including visibility calculation
     applyAutoLayoutRef.current(newNodes, currentEdges);
-  }, [getNodes, getEdges]); // applyAutoLayout is defined below, need to ensure cyclic dependency handled or order matches
+  }, [getNodes, getEdges]);
 
   // Update ref whenever toggleNodeExpansion changes
   useEffect(() => {
@@ -168,16 +117,9 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
 
   // Auto-layout with visibility handling
   const applyAutoLayout = useCallback((currentNodes: CustomNode[], currentEdges: Edge[], focusNodeId?: string) => {
-    // 0. Inject live data helpers (hasChildren, onToggle)
-    // We need to ensure every node has the onToggle callback and correct hasChildren state
-    // strictly speaking, we should do this when nodes/edges change, but doing it here ensures consistency before layout.
-    // However, setNodes triggers re-render, so we must be careful not to loop.
-    // The nodes passed here are expanding/collapsing, so we just want to update visibility.
-    // The "live" props like onToggle should ideally be stable.
-
+    // Inject live data helpers (hasChildren, onToggle)
     const nodesWithData = currentNodes.map(node => {
       const hasChildren = currentEdges.some(e => e.source === node.id);
-      // Only update if changed to avoid unnecessary re-renders if strict
       return {
         ...node,
         type: 'mindMap', // Ensure type is always mindMap
@@ -200,7 +142,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     );
 
     // 3. Layout visible elements
-    const { nodes: layoutedVisibleNodes, edges: layoutedVisibleEdges } = getLayoutedElements(
+    const { nodes: layoutedVisibleNodes } = getLayoutedElements(
       visibleNodes,
       visibleEdges
     );
@@ -214,113 +156,32 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       return node;
     }) as CustomNode[];
 
-    // Edges generally don't change properties other than maybe logic in getLayoutedElements if it modified them
-    // But we should pass all edges back, maybe just keeping currentEdges is fine but Dagre might return updated edge points if we used them.
-    // For now, React Flow handles edge routing implicitly or via type.
+    // Set Nodes/Edges via Store (Atomic update for History)
+    setGraph(finalNodes, currentEdges);
 
-    setNodes(finalNodes);
-    setEdges(currentEdges);
 
     if (focusNodeId) {
       const focusNode = finalNodes.find(n => n.id === focusNodeId);
       if (focusNode && focusNode.position) {
-        // Center the view on the new node
-        // Assuming default node width/height if not measured yet, but layout usually provides it.
-        // We focus on the node's position.
         const x = focusNode.position.x + (focusNode.width || 150) / 2;
         const y = focusNode.position.y + (focusNode.height || 40) / 2;
-
-        // Preserve current zoom
         const { zoom } = getViewport();
         setCenter(x, y, { duration: 800, zoom });
       }
     }
-  }, [setNodes, setEdges, setCenter, getViewport]);
+  }, [setNodes, setEdges, setCenter, getViewport]); // Store actions are stable
 
   // Update ref whenever applyAutoLayout changes
   useEffect(() => {
     applyAutoLayoutRef.current = applyAutoLayout;
   }, [applyAutoLayout]);
 
-  // NOTE: toggleNodeExpansion depends on applyAutoLayout and vice versa if not careful.
-  // To break cycle, toggleNodeExpansion defines logic but calls a layout helper.
-  // Or we use a ref for the layout function if needed, but here:
-  // toggleNodeExpansion calls applyAutoLayout.
-  // applyAutoLayout calls setNodes.
-  // applyAutoLayout does NOT call toggleNodeExpansion (it passes it as callback).
-  // So dependency order: define applyAutoLayout FIRST, then toggleNodeExpansion? No, toggle needs to be passed to node.
-  // We can use a stable ref for toggleNodeExpansion or wrap it.
-  // Actually, standard pattern: define toggleNodeExpansion using `setNodes` directly, OR just pass a stable handler that calls the logic.
-
-  // Let's rely on the fact that function hoisting doesn't work for const.
-  // We need to use `useCallback` effectively.
-
-  // Re-structure:
-  // 1. Define toggleNodeExpansion (it needs applyAutoLayout) -> Problem if applyAutoLayout needs toggleNodeExpansion to inject into data.
-  // Solution: Injecting functions into data is sometimes tricky with re-renders.
-  // Better: The `onToggle` in data calls a stable function that reads the latest state?
-
-  // Let's resolve the circular dependency by moving the data injection to a separate step or just defining them in order.
-  // Actually, we can define `onToggleWrapper` which calls `toggleNodeExpansion`.
-
-  // Revised Order:
-  // 1. applyAutoLayout (needs to inject onToggle)
-  // 2. toggleNodeExpansion (needs applyAutoLayout)
-  // Cycle!
-
-  // Fix: applyAutoLayout shouldn't be responsible for injecting `onToggle` if we can help it, OR
-  // we use a `useEffect` to keep data in sync.
-  // Or better: pass `onToggle` via a Context or custom hook, but specific to this flow.
-  // Simplest: `applyAutoLayout` accepts `onToggle` as arg? No, used in callback.
-
-  // Hack/Simple Fix: Use a ref for `toggleNodeExpansion` so `applyAutoLayout` can start using it before it's fully defined (if it was a function declaration).
-  // But with const/useCallback, we can't.
-
-  // Let's separate the "Inject Data" logic from "Layout" logic.
-  // Or just use `useEffect` to update the nodes with the handler?
-
-  // Let's try to define `toggleNodeExpansion` *inside* the component, but `applyAutoLayout` depends on it.
-  // We can leave `onToggle` undefined in `applyAutoLayout` initially? No.
-
-  // Let's make `toggleNodeExpansion` stable and NOT depend on `applyAutoLayout` directly?
-  // No, it needs to re-layout.
-
-  // OK, `applyAutoLayout` does NOT need to update `data.onToggle`.
-  // We can ensure `data.onToggle` is set when we Create/Add nodes.
-  // And also we might need to "refresh" it if we load nodes from props.
-
-  // Let's do this:
-  // We'll define `toggleNodeExpansion` which does the node map update + layout call.
-  // But `applyAutoLayout` is just "Layout these nodes".
-  // It shouldn't inject data.
-  // We will Inject Data in a `useEffect` or when adding nodes.
-
-  // BUT: existing nodes from props need the handler.
-  // So we probably need a `useEffect` that runs on mount/updates to inject handlers.
-
-  // Let's refactor `applyAutoLayout` to ONLY do layout/visibility.
-  // And we'll update the node data (hasChildren, onToggle) in a separate pass or effect.
-
-  /* Refactoring Plan in replacement chunk:
-     1. Define applyAutoLayout (pure layout/vis).
-     2. Define toggleNodeExpansion (calls applyAutoLayout).
-     3. Effect to validat/inject data into nodes (if missing onToggle or type).
-  */
-
-  // React Flow `<ReactFlow>` nodeTypes prop.
 
   const getSelectedNode = useCallback(() => {
     return getNodes().find((n) => n.selected);
   }, [getNodes]);
 
-  // MOVE definitions up/down to allow cleaner references if possible, or use standard functions.
-
-  // For this edit, I will stick to the previous pattern but be careful.
-  // I will replace the component content significantly.
-
-
   const addChildNode = useCallback(() => {
-    takeSnapshot(); // Snapshot
     const currentNodes = getNodes();
     const selectedNode = currentNodes.find(n => n.selected);
 
@@ -333,6 +194,8 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       data: { label: 'New Topic', expanded: true },
       type: 'mindMap',
       selected: true, // Auto-select new node
+      width: 150,
+      height: 50,
     };
 
     const newEdge: Edge = {
@@ -352,10 +215,18 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
+    setIsCreatingNode(true);
+    // Pause recording logic handling?
+    // Actually Zundo tracks every setNodes.
+    // Ideally we want 1 history item for Add + Rename.
+    // We can pause() here? No, 'Add' needs to be recorded.
+    // Retain 'isCreatingNode' logic to handle consolidation or rely on zundo's grouping if implemented.
+    // For now, let zundo snapshot 'Add'. If we want to group rename, we might need a transaction.
+    // Or we pause() before rename?
+
+  }, [getNodes, getEdges, applyAutoLayout]);
 
   const addSiblingNode = useCallback(() => {
-    takeSnapshot(); // Snapshot
     const currentNodes = getNodes();
     const currentEdges = getEdges();
     const selectedNode = currentNodes.find(n => n.selected);
@@ -365,7 +236,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     // Find parent
     const parentEdge = currentEdges.find(e => e.target === selectedNode.id);
 
-    if (!parentEdge) return; // Cannot add sibling to root (unless we handle root siblings?)
+    if (!parentEdge) return;
 
     const parentNodeId = parentEdge.source;
     const newNodeId = `${Date.now()}`;
@@ -375,6 +246,8 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       data: { label: 'New Topic', expanded: true },
       type: 'mindMap',
       selected: true, // Auto-select
+      width: 150,
+      height: 50,
     };
 
     const newEdge: Edge = {
@@ -383,36 +256,30 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       target: newNodeId,
     };
 
-    // Deselect other nodes
     const deselectNodes = currentNodes.map(n => ({ ...n, selected: false }));
     const updatedNodes = [...deselectNodes, newNode] as CustomNode[];
     const updatedEdges = [...currentEdges, newEdge];
 
     applyAutoLayout(updatedNodes, updatedEdges, newNodeId);
 
-    // Auto-open rename modal
     setEditingNodeId(newNodeId);
     setEditingLabel(newNode.data.label);
     setIsRenameModalOpen(true);
-  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
+    setIsCreatingNode(true);
+  }, [getNodes, getEdges, applyAutoLayout]);
 
   const deleteSelectedNodes = useCallback(() => {
     const selectedNodes = getNodes().filter(n => n.selected);
     if (selectedNodes.length === 0) return;
 
-    // Prevent deletion of root nodes (nodes with no incoming edges)
     const currentEdges = getEdges();
     const incomingEdgeTargets = new Set(currentEdges.map(e => e.target));
-
-    // Nodes to delete must have an incoming edge (i.e., not a root)
-    // Exception: If we decide to allow deleting roots if they are not the *initial* root, 
-    // but typically "Root" implies the main topic. 
-    // This logic protects ALL roots (any node with no parent).
-    const directNodesToDelete = selectedNodes.filter(n => incomingEdgeTargets.has(n.id));
+    // Prevent deleting root node (assuming ID '1' is always root)
+    const directNodesToDelete = selectedNodes
+      .filter(n => incomingEdgeTargets.has(n.id) || n.id !== '1') // Allow if it has incoming edge (not root usually) OR is not root
+      .filter(n => n.id !== '1'); // Strict check: never delete ID '1'
 
     if (directNodesToDelete.length === 0) return;
-
-    takeSnapshot(); // Snapshot before delete
 
     // Recursive helper to find all descendants
     const getDescendants = (nodeIds: string[], accumulated: Set<string> = new Set()): Set<string> => {
@@ -428,12 +295,9 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       return getDescendants(newChildren, accumulated);
     };
 
-    // Collect all descendants for cascading deletion
     const descendants = getDescendants(directNodesToDelete.map(n => n.id));
     const allIdsToDelete = new Set([...directNodesToDelete.map(n => n.id), ...descendants]);
 
-    // Find parent to focus after deletion logic needs to consider the *top-most* deleted nodes
-    // We prioritize the parent of the first *direct* deleted node
     let parentIdToFocus: string | undefined;
     const firstDeletedNode = directNodesToDelete[0];
     const parentEdge = currentEdges.find(e => e.target === firstDeletedNode.id);
@@ -444,8 +308,6 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     const remainingNodes = getNodes()
       .filter((n) => !allIdsToDelete.has(n.id))
       .map(n => {
-        // If this node is the identified parent and currently exists (wasn't deleted), select it
-        // Also clear selection for others to ensure single focus behavior
         if (parentIdToFocus && n.id === parentIdToFocus) {
           return { ...n, selected: true };
         }
@@ -455,49 +317,85 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     const remainingEdges = getEdges().filter((e) => !allIdsToDelete.has(e.source) && !allIdsToDelete.has(e.target));
 
     applyAutoLayout(remainingNodes, remainingEdges);
-  }, [getNodes, getEdges, applyAutoLayout, takeSnapshot]);
+  }, [getNodes, getEdges, applyAutoLayout]);
 
   const onNodeDoubleClickInternal = useCallback((event: React.MouseEvent, node: CustomNode) => {
     if (isReadOnly) return;
-
-    // Open rename modal
     setEditingNodeId(node.id);
     setEditingLabel(node.data.label);
     setIsRenameModalOpen(true);
+  }, [isReadOnly]);
 
-    // Also call external handler if provided (for logging or other side effects)
-    if (externalOnNodeDoubleClick) {
-      externalOnNodeDoubleClick(event, node);
-    }
-  }, [isReadOnly, externalOnNodeDoubleClick]);
+  const handleRenameSave = useCallback((e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e) e.stopPropagation();
 
-  // NOTE: toggleNodeExpansion was duplicated here. Logic is moved to top.
-
-  const handleRenameSave = useCallback(() => {
     if (!editingNodeId) return;
 
-    takeSnapshot(); // Snapshot
+    // Implementation Note:
+    // With Zundo, every state change is recorded.
+    // If 'isCreatingNode' is true, we just Added a node (1 history).
+    // Now we Rename it. This adds another history step.
+    // Users prefer "Add+Rename" as 1 step.
+    // Zundo doesn't support 'retroactive merge' easily without transactions.
+    // WORKAROUND: We can just let it be 2 steps to start with (Safe), 
+    // OR we can try to pause() tracking during 'Add' and resume() after 'Rename'?
+    // No, we want 'Add' to be undoable if we Cancel rename.
+    // The previous manual logic skipped snapshot on Rename if isCreatingNode.
+
+    // Zundo Logic:
+    // We can pause tracking *before* the rename state update if isCreatingNode is true?
+    // But then the Rename isn't tracked? So Undo would revert the Name change?
+    // If we pause, the Rename mutation applies but history doesn't see it.
+    // So Undo goes back to 'Before Add'? No, Zundo doesn't know about the Pause mutation?
+    // Actually if we Pause, the state changes but history pointer stays.
+    // So Undo would jump back to state BEFORE the Pause changes (i.e. before Rename).
+    // Which is the 'Add' state.
+
+    // Desired: Undo from (Add+Rename) -> (Pre-Add).
+    // Means we want to overwite the 'Add' history entry with the 'Add+Rename' state?
+    // Zundo doesn't support overwrite.
+
+    // Alternative: We accept 2 steps for now, or use `isCreatingNode` to simply NOT Pause, 
+    // but maybe we can merge?
+
+    // Let's stick to standard behavior first: Every change is a snapshot.
+    // If users complain about 2 steps, we refine.
+    // Actually, manual implementation had this refinement.
+    // We can achieve this by:
+    // 1. pause() before Add? No.
+    // 2. pause() before Rename? Then Undo -> Add State (with old name).
+    // So User un-renames, then un-adds. That is 2 steps.
+
+    // To get 1 step: We need the 'Add' action NOT to create a history entry yet?
+    // But we need to see it.
+
+    // For now, I will create a standard save. 
+    // We can optimize 'isCreatingNode' later if needed.
+    // OR: We use `interaction` grouping if we had it, but Zundo is simple.
+    // Actually, if we use `pause()` during `Add`... no.
+
+    // Let's implement standard SetNodes.
 
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === editingNodeId) {
           return {
             ...node,
-            selected: true, // Restore/Enforce selection
+            selected: true,
             data: {
               ...node.data,
               label: editingLabel,
             },
           };
         }
-        // Deselect all others to ensure single focus
         return { ...node, selected: false };
       })
     );
     setIsRenameModalOpen(false);
     setEditingNodeId(null);
     setEditingLabel('');
-  }, [editingNodeId, editingLabel, setNodes, takeSnapshot]);
+    setIsCreatingNode(false);
+  }, [editingNodeId, editingLabel, setNodes, isCreatingNode]);
 
   const moveSelection = useCallback((key: string) => {
     const selectedNode = getSelectedNode() as CustomNode | undefined;
@@ -516,13 +414,9 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     let nextNodeId: string | undefined;
 
     if (key === 'ArrowLeft') {
-      // Navigate to parent
       const parentEdge = currentEdges.find(e => e.target === selectedNode.id);
-      if (parentEdge) {
-        nextNodeId = parentEdge.source;
-      }
+      if (parentEdge) nextNodeId = parentEdge.source;
     } else if (key === 'ArrowRight') {
-      // Navigate to child
       if (selectedNode.data.expanded !== false) {
         const childNodes = getSortedChildren(selectedNode.id);
         if (childNodes.length > 0) {
@@ -537,13 +431,11 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
       if (parentEdge) {
         siblings = getSortedChildren(parentEdge.source);
       } else {
-        // Root nodes
         const nonRootIds = new Set(currentEdges.map(e => e.target));
         siblings = currentNodes.filter(n => !nonRootIds.has(n.id) && !n.hidden);
         siblings.sort((a, b) => a.position.y - b.position.y);
       }
 
-      // Ensure current node is in siblings (it should be unless hidden logic is buggy)
       const currentIndex = siblings.findIndex(n => n.id === selectedNode.id);
       if (currentIndex !== -1) {
         if (key === 'ArrowUp' && currentIndex > 0) {
@@ -555,12 +447,14 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     }
 
     if (nextNodeId) {
+      // Pause history for selection change? Usually yes.
+      pause();
       setNodes((nds) => nds.map(n => ({
         ...n,
         selected: n.id === nextNodeId
       })));
+      resume();
 
-      // Auto-pan to next node
       const nextNode = currentNodes.find(n => n.id === nextNodeId);
       if (nextNode && nextNode.position) {
         const x = nextNode.position.x + (nextNode.width || 150) / 2;
@@ -569,70 +463,47 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         setCenter(x, y, { duration: 300, zoom });
       }
     }
-  }, [getNodes, getEdges, getSelectedNode, setNodes, toggleNodeExpansion, setCenter, getViewport]);
-
-  // Wrapper for onConnect to snapshot
-  const handleOnConnect = useCallback((params: Connection) => {
-    takeSnapshot();
-    originalOnConnect(params);
-  }, [takeSnapshot, originalOnConnect]);
-
-  // Handle Drag Start for Snapshot
-  // We can't easily hook into onNodeDragStart passed to ReactFlow unless we wrap it?
-  // But wait, ReactFlow props onNodeDragStart needs to be here.
-  const onNodeDragStart = useCallback(() => {
-    takeSnapshot();
-  }, [takeSnapshot]);
-
+  }, [getNodes, getEdges, getSelectedNode, setNodes, setCenter, getViewport, pause, resume]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-
+    if (event.nativeEvent.isComposing) return;
     if (isReadOnly || isRenameModalOpen) return;
 
-    // Check if input is focused (again, just safety)
     const activeElement = document.activeElement;
     const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-
     if (isInput) return;
 
-    // Undo/Redo shortcuts
-    // Undo/Redo shortcuts
     const isCtrl = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
 
-    // Ctrl+Z (Undo)
     if (isCtrl && key === 'z' && !event.shiftKey) {
       event.preventDefault();
       undo();
       return;
     }
 
-    // Ctrl+Y or Ctrl+Shift+Z (Redo)
     const isRedoKey = key === 'y' || (key === 'z' && event.shiftKey);
-
-
     if (isCtrl && isRedoKey) {
-
       event.preventDefault();
       redo();
       return;
     }
 
     switch (event.key) {
-      case 'Tab': // Insert child
-        event.preventDefault(); // Prevent focus change
+      case 'Tab':
+        event.preventDefault();
         addChildNode();
         break;
-      case 'Enter': // Insert sibling
+      case 'Enter':
         event.preventDefault();
         addSiblingNode();
         break;
-      case 'Delete': // Delete
+      case 'Delete':
       case 'Backspace':
         deleteSelectedNodes();
         break;
-      case ' ': // Space: Rename
-        event.preventDefault(); // Prevent scrolling
+      case ' ':
+        event.preventDefault();
         const selectedNode = getSelectedNode();
         if (selectedNode) {
           setEditingNodeId(selectedNode.id);
@@ -654,14 +525,15 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
     <div
       style={{ width: '100%', height: '100%', background: '#fff', position: 'relative' }}
       onKeyDown={onKeyDown}
-      tabIndex={0} // Make div focusable to catch key events
+      tabIndex={0}
+      className='mindmap-container' // Identifier for tests
     >
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={handleOnConnect}
+        onConnect={onConnectStore}
         onNodeDoubleClick={onNodeDoubleClickInternal}
         onKeyDown={onKeyDown}
         fitView
@@ -680,20 +552,20 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
               <Tooltip title="元に戻す (Ctrl+Z)">
                 <Button
                   icon={<UndoOutlined />}
-                  onClick={undo}
-                  disabled={past.length === 0}
+                  onClick={() => undo()}
+                  disabled={pastStates.length === 0}
                   aria-label="元に戻す"
                 />
               </Tooltip>
-              <Tooltip title="やり直す (Ctrl+ Shift+Z)">
+              <Tooltip title="やり直す (Ctrl+Y)">
                 <Button
                   icon={<RedoOutlined />}
-                  onClick={redo}
-                  disabled={future.length === 0}
+                  onClick={() => redo()}
+                  disabled={futureStates.length === 0}
                   aria-label="やり直す"
                 />
               </Tooltip>
-              <div style={{ width: 1, height: 24, background: '#eee', margin: '0 8px' }} /> {/* Separator */}
+              <div style={{ width: 1, height: 24, background: '#eee', margin: '0 8px' }} />
               <Tooltip title="子トピックを追加 (Tab)">
                 <Button
                   icon={<NodeIndexOutlined />}
@@ -720,14 +592,6 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
                   aria-label="削除"
                 />
               </Tooltip>
-              {/* Fallback 'Reset/Add Root' logic could go here if list empty */}
-              {nodes.length === 0 && (
-                <Button icon={<PlusCircleOutlined />} onClick={() => {
-                  setNodes([{ id: '1', position: { x: 0, y: 0 }, data: { label: 'Center Topic' }, type: 'input' }]);
-                }}>
-                  メイン追加
-                </Button>
-              )}
             </Space>
           </Panel>
         )}
@@ -737,7 +601,10 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
         title="トピック名の編集"
         open={isRenameModalOpen}
         onOk={handleRenameSave}
-        onCancel={() => setIsRenameModalOpen(false)}
+        onCancel={() => {
+          setIsRenameModalOpen(false);
+          setIsCreatingNode(false);
+        }}
         okText="保存"
         cancelText="キャンセル"
       >
@@ -746,7 +613,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({
           value={editingLabel}
           onChange={(e) => setEditingLabel(e.target.value)}
           onPressEnter={handleRenameSave}
-          autoFocus // Kept as backup, but ref logic is primary
+          autoFocus
         />
       </Modal>
     </div>
@@ -760,6 +627,5 @@ const MindMapPanel: React.FC<MindMapPanelProps> = (props) => {
     </ReactFlowProvider>
   );
 };
-
 
 export default MindMapPanel;

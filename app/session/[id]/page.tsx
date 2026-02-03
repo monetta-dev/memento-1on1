@@ -7,6 +7,8 @@ import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from '@
 import '@xyflow/react/dist/style.css';
 import { useRouter, useParams } from 'next/navigation';
 import { useStore, type AgendaItem, type Note } from '@/store/useStore';
+import { useMindMapStore } from '@/store/useMindMapStore';
+import { useStore as useZundoStore } from 'zustand';
 
 import SessionHeader from '@/components/session/SessionHeader';
 import VideoPanel from '@/components/session/VideoPanel';
@@ -28,7 +30,7 @@ const MOCK_ADVICES = [
 ];
 
 const initialNodes: CustomNode[] = [
-  { id: '1', position: { x: 0, y: 0 }, data: { label: '1on1 Theme: Project A' }, type: 'input' },
+  { id: '1', position: { x: 0, y: 0 }, data: { label: '1on1 Theme: Project A' }, type: 'input', selected: true },
 ];
 const initialEdges: Edge[] = [];
 
@@ -259,25 +261,89 @@ export default function SessionPage() {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // MindMap state
-  const [nodes, setNodes, onNodesChange] = useNodesState<CustomNode>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  // MindMap state - using global store for zundo support
+  const mindMapNodes = useMindMapStore(state => state.nodes);
+  const mindMapEdges = useMindMapStore(state => state.edges);
+  const setMindMapNodes = useMindMapStore(state => state.setNodes);
+  const setMindMapEdges = useMindMapStore(state => state.setEdges);
+  const { clear: clearHistory } = useZundoStore(useMindMapStore.temporal, (state) => state);
 
-  const onConnect = useCallback((params: Connection) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  // Initialize MindMap from session data
+  useEffect(() => {
+    // Only initialize if store is empty or we specifically want to load (e.g. on first load)
+    // Actually sessionData loading happens once.
+    if (sessionData && sessionData.mindMapData) {
+      // Avoid overwriting if we already have data in store? 
+      // Ideally we sync from DB on load.
+      // But since we are client-side navigation, if we navigate away and back, store might persist?
+      // Zustand store persists in memory.
+      // If we want to reset on new session ID:
 
-  const handleAddNode = useCallback(() => {
-    const newNodeId = (nodes.length + 1).toString();
-    const newNode: CustomNode = {
-      id: newNodeId,
-      position: { x: Math.random() * 400, y: Math.random() * 400 },
-      data: { label: 'New Topic' }
-    };
-    setNodes((nds) => [...nds, newNode]);
-  }, [nodes.length, setNodes]);
+      // Basic logic: always load from DB on session load.
+      // We can check if `nodes.length === 0` to decide? 
+      // Or just overwrite.
 
-  const onNodeDoubleClick = useCallback((_: React.MouseEvent, __: CustomNode) => { // eslint-disable-line @typescript-eslint/no-unused-vars
-    // Could implement node editing on double click
-  }, []);
+      // Let's use a ref to track if we initialized for this session ID
+      // Reuse hasFetchedRef? No, that's for fetching.
+
+      // Simple approach: When sessionData changes (and is different ID), update store.
+      // But sessionData updates on auto-save too. We need to avoid loops.
+
+      // Best: Only load if we haven't loaded this session yet.
+      // But we don't have a reliable 'loaded' flag in store.
+
+      // Actually, standard pattern:
+      // Load initial data props into store.
+      // We can do this once when `isFirstRender` logic runs or similar.
+
+      // For now, let's load if nodes are empty OR if we assume fresh mount.
+      // But we just navigated here.
+
+      const dbNodes = sessionData.mindMapData.nodes || initialNodes;
+      const dbEdges = sessionData.mindMapData.edges || initialEdges;
+
+      // Check if we need to load (e.g. store is empty or diff ID - but we don't track ID in store)
+      // Just set it.
+      // setMindMapNodes(dbNodes);
+      // setMindMapEdges(dbEdges);
+      // clearHistory(); // Clear history after initial load
+
+      // BUT this useEffect runs on every sessionData update (auto-save included).
+      // We must NOT overwrite store with DB data if store is ahead.
+      // So we only load ONCE.
+    }
+  }, [sessionData]); // This dependency is dangerous for overwriting.
+
+  // Better initialization logic:
+  const sessionLoadedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (sessionData && sessionData.id !== sessionLoadedRef.current) {
+      // New session loaded
+      console.log('Initializing MindMap Store from Session Data');
+      let dbNodes = sessionData.mindMapData?.nodes;
+      const dbEdges = sessionData.mindMapData?.edges || initialEdges;
+
+      // Safe guard: If dbNodes is empty or missing root, restore initial
+      if (!dbNodes || dbNodes.length === 0) {
+        dbNodes = initialNodes;
+      }
+
+      setMindMapNodes(dbNodes as any); // Cast for safety if types slightly mismatch
+      setMindMapEdges(dbEdges);
+      console.log('Clearing History after initialization');
+      clearHistory();
+
+      sessionLoadedRef.current = sessionData.id;
+    } else {
+      console.log('Skipping MindMap Init:', {
+        hasData: !!sessionData,
+        currentId: sessionData?.id,
+        loadedId: sessionLoadedRef.current
+      });
+    }
+  }, [sessionData, setMindMapNodes, setMindMapEdges, clearHistory]);
+
 
   const [isEnding, setIsEnding] = useState(false);
 
@@ -306,11 +372,15 @@ export default function SessionPage() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isFirstRender = useRef(true);
 
+  // Auto-save: Watch store state
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
+
+    // Don't save if we haven't loaded yet
+    if (sessionLoadedRef.current !== params.id) return;
 
     // Debounce save to avoid too frequent updates
     if (saveTimeoutRef.current) {
@@ -321,7 +391,7 @@ export default function SessionPage() {
       if (!sessionData) return;
 
       try {
-        const mindMapData = { nodes, edges };
+        const mindMapData = { nodes: mindMapNodes, edges: mindMapEdges };
         await updateSession(sessionData.id, {
           mindMapData
         });
@@ -335,7 +405,7 @@ export default function SessionPage() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [nodes, edges, sessionData, updateSession]);
+  }, [mindMapNodes, mindMapEdges, sessionData, updateSession, params.id]);
 
 
 
@@ -422,13 +492,21 @@ export default function SessionPage() {
       if (currentSessionData) {
         console.log('handleEndSession - calling updateSession with data');
         try {
+          // Use latest store data
+          // READ directly from store to ensure we have latest even if effect pending
+          // (Though mindMapNodes variable is reactive, inside async handler it might be stale closure if not careful? 
+          // Actually handleEndSession is re-created on render? No it's not wrapped in useCallback... wait, let's check original logic.
+          // Original logic was not shown fully but likely defined in component body.
+          // Ideally we use refs or ensure we have latest.
+          // Since mindMapNodes is from useMindMapStore hook, it updates component.
+
           await updateSession(currentSessionData.id, {
             status: 'completed',
             transcript: transcriptData,
             summary: summary,
             mindMapData: {
-              nodes: nodes,
-              edges: edges,
+              nodes: mindMapNodes,
+              edges: mindMapEdges,
               actionItems: actionItems
             },
             notes
@@ -480,7 +558,6 @@ export default function SessionPage() {
       setIsEnding(false);
     }
   };
-
 
 
   if (!sessionData) {
@@ -557,15 +634,7 @@ export default function SessionPage() {
                 background: '#fff'
               }}>
                 <MindMapPanel
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  onNodeDoubleClick={onNodeDoubleClick}
-                  handleAddNode={handleAddNode}
-                  setNodes={setNodes}
-                  setEdges={setEdges}
+                // No props needed now, usage via store
                 />
               </div>
             )}
