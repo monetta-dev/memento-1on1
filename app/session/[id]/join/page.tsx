@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Layout, Typography, Spin, notification, Card } from 'antd';
-import { Node, Edge, useNodesState, useEdgesState } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -11,11 +10,10 @@ import VideoPanel from '@/components/session/VideoPanel';
 import MindMapPanel from '@/components/session/MindMapPanel';
 import SubordinateControlsBar from '../../../../components/session/SubordinateControlsBar';
 import { useStore } from '@/store/useStore';
+import { useMindMapStore, type CustomNode } from '@/store/useMindMapStore';
 import { supabase } from '@/lib/supabase';
 
 const { Content, Sider } = Layout;
-
-type CustomNode = Node<{ label: string }>;
 
 export default function JoinSessionPage() {
   const params = useParams();
@@ -24,6 +22,9 @@ export default function JoinSessionPage() {
   const subordinates = useStore(state => state.subordinates);
   const fetchSessions = useStore(state => state.fetchSessions);
   const fetchSubordinates = useStore(state => state.fetchSubordinates);
+
+  // MindMap Store Actions
+  const setGraph = useMindMapStore((state) => state.setGraph);
 
   const [isMindMapMode, setIsMindMapMode] = useState(false);
   const [micOn, setMicOn] = useState(true);
@@ -35,7 +36,7 @@ export default function JoinSessionPage() {
   // Debug log for mindmap mode
   useEffect(() => {
     if (hasFetchedRef.current === params.id) return;
-    
+
     try {
       fetchSessions();
       fetchSubordinates();
@@ -69,28 +70,17 @@ export default function JoinSessionPage() {
     // Subordinate view doesn't need to handle transcripts
   }, []);
 
-  // Load mindmap data from session
-  const initialNodes: CustomNode[] = useMemo(() => {
-    if (sessionData?.mindMapData?.nodes) {
-      return sessionData.mindMapData.nodes as CustomNode[];
-    }
-    return [{ id: '1', position: { x: 0, y: 0 }, data: { label: '1on1 Session' }, type: 'input' }];
-  }, [sessionData]);
-
-  const initialEdges: Edge[] = useMemo(() => {
-    if (sessionData?.mindMapData?.edges) {
-      return sessionData.mindMapData.edges;
-    }
-    return [];
-  }, [sessionData]);
-
-  // MindMap state - read-only for subordinate
-  const [nodes, setNodes] = useNodesState<CustomNode>(initialNodes);
-  const [edges, setEdges] = useEdgesState(initialEdges);
-
   // Realtime subscription for mindmap updates
   useEffect(() => {
     if (!sessionData?.id || !supabase) return;
+
+    // Initial load into store
+    if (sessionData.mindMapData) {
+      setGraph(
+        (sessionData.mindMapData.nodes || []) as CustomNode[],
+        sessionData.mindMapData.edges || []
+      );
+    }
 
     const channel = supabase
       .channel(`session-${sessionData.id}`)
@@ -111,10 +101,10 @@ export default function JoinSessionPage() {
               edgesCount: newMindMapData.edges?.length || 0,
               newMindMapData
             });
-            setNodes(newMindMapData.nodes);
-            setEdges(newMindMapData.edges || []);
+            // Update store directly
+            setGraph(newMindMapData.nodes, newMindMapData.edges || []);
           }
-          
+
           // Handle session status changes
           const newStatus = payload.new.status;
           if (newStatus === 'completed') {
@@ -124,7 +114,7 @@ export default function JoinSessionPage() {
               placement: 'topRight',
               duration: 5,
             });
-            
+
             // Redirect to dashboard after 5 seconds
             setTimeout(() => {
               router.push('/');
@@ -135,7 +125,7 @@ export default function JoinSessionPage() {
 
     // Subscribe and handle errors
     channel.subscribe((status, err) => {
-       if (status === 'CHANNEL_ERROR') {
+      if (status === 'CHANNEL_ERROR') {
         console.error('Realtime subscription error:', err);
         notification.error({
           message: 'Connection Error',
@@ -143,23 +133,15 @@ export default function JoinSessionPage() {
           placement: 'topRight',
           duration: 5,
         });
-       } else if (status === 'SUBSCRIBED') {
-        } else if (status === 'CLOSED') {
-       }
+      } else if (status === 'SUBSCRIBED') {
+      } else if (status === 'CLOSED') {
+      }
     });
 
     return () => {
       supabase?.removeChannel(channel);
     };
-  }, [sessionData?.id, setNodes, setEdges, router]);
-
-  // Update mindmap when session data changes
-  useEffect(() => {
-    if (sessionData?.mindMapData) {
-      setNodes(sessionData.mindMapData.nodes as CustomNode[]);
-      setEdges(sessionData.mindMapData.edges || []);
-    }
-  }, [sessionData?.mindMapData, setNodes, setEdges]);
+  }, [sessionData?.id, router, setGraph, sessionData?.mindMapData]); // Removed setNodes, setEdges
 
   if (!sessionData) {
     return (
@@ -171,33 +153,24 @@ export default function JoinSessionPage() {
 
   return (
     <Layout style={{ minHeight: '100vh', height: '100dvh', overflow: 'auto' }}>
-      <SessionHeader 
-        subordinate={subordinate} 
-        sessionData={sessionData} 
+      <SessionHeader
+        subordinate={subordinate}
+        sessionData={sessionData}
         isSubordinateView={true}
       />
 
       <Layout>
         {/* Main Content: Video / MindMap */}
-        <Content style={{ 
-          flex: isMindMapMode ? 1 : 3, 
-          background: '#000', 
-          position: 'relative', 
-          display: 'flex', 
-          flexDirection: 'column' 
+        <Content style={{
+          flex: isMindMapMode ? 1 : 3,
+          background: '#000',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           <div style={{ flex: 1, position: 'relative' }}>
             {isMindMapMode ? (
-              <MindMapPanel
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={() => {}} // Read-only
-                onEdgesChange={() => {}} // Read-only
-                onConnect={() => {}} // Read-only
-                onNodeDoubleClick={() => {}} // Read-only
-                handleAddNode={() => {}} // Read-only
-                isReadOnly={true}
-              />
+              <MindMapPanel isReadOnly={true} />
             ) : (
               <VideoPanel
                 sessionData={sessionData}
@@ -221,9 +194,9 @@ export default function JoinSessionPage() {
 
         {/* Right Side: Minimal info panel - hidden in mindmap mode */}
         {!isMindMapMode && (
-           <Sider width={300} theme="light" style={{ 
-            borderLeft: '1px solid #f0f0f0', 
-            display: 'flex', 
+          <Sider width={300} theme="light" style={{
+            borderLeft: '1px solid #f0f0f0',
+            display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             height: '100%'
@@ -232,16 +205,16 @@ export default function JoinSessionPage() {
               title="Session Info"
               size="small"
               variant="outlined"
-              style={{ 
-                width: '100%', 
-                height: '100%', 
-                display: 'flex', 
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
                 flexDirection: 'column'
               }}
               styles={{
-                body: { 
-                  flex: 1, 
-                  minHeight: 0, 
+                body: {
+                  flex: 1,
+                  minHeight: 0,
                   padding: '16px',
                   overflowY: 'auto'
                 }
@@ -250,7 +223,7 @@ export default function JoinSessionPage() {
               <Typography.Paragraph>
                 You are participating in a 1on1 session as <strong>{subordinate?.name || 'Subordinate'}</strong>.
               </Typography.Paragraph>
-              
+
               <div style={{ marginTop: 20 }}>
                 <Typography.Text strong>Theme:</Typography.Text>
                 <Typography.Paragraph>{sessionData.theme}</Typography.Paragraph>
