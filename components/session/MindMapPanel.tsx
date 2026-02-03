@@ -332,7 +332,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
 
     const remainingEdges = getEdges().filter((e) => !allIdsToDelete.has(e.source) && !allIdsToDelete.has(e.target));
 
-    applyAutoLayout(remainingNodes, remainingEdges);
+    applyAutoLayout(remainingNodes, remainingEdges, parentIdToFocus);
   }, [getNodes, getEdges, applyAutoLayout]);
 
   const onNodeDoubleClickInternal = useCallback((event: React.MouseEvent, node: CustomNode) => {
