@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Typography, Card, Switch, Avatar, Button, message, Spin, Tag, Select } from 'antd';
 import { CalendarOutlined, MessageOutlined, LinkOutlined, DisconnectOutlined, GoogleOutlined } from '@ant-design/icons';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { createClientComponentClient, getOAuthRedirectUrl } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
@@ -20,7 +19,7 @@ const { Title } = Typography;
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { language, setLanguage, t } = useLanguage();
+  // Removed custom language hook - hardcoding Japanese
   const [googleConnected, setGoogleConnected] = useState(false);
   const [lineConnected, setLineConnected] = useState(false);
   const [lineSettings, setLineSettings] = useState<LineSettings | null>(null);
@@ -342,14 +341,13 @@ export default function SettingsPage() {
   };
 
 
-
   const integrations = [
     {
       id: 'google-calendar',
-      title: t('google_calendar'),
+      title: 'Googleカレンダー',
       description: isGoogleAuth
-        ? t('calendar_integration_available')
-        : t('sign_in_with_google_to_enable'),
+        ? 'カレンダー連携が利用可能です'
+        : 'Googleでサインインしてカレンダー連携を有効にしてください',
       icon: <CalendarOutlined style={{ color: '#fadb14' }} />,
       connected: googleConnected,
       loading: googleLoading,
@@ -360,10 +358,10 @@ export default function SettingsPage() {
     },
     {
       id: 'line',
-      title: t('line'),
+      title: 'LINE',
       description: lineConnected && lineSettings?.is_friend === false
         ? 'LINE連携済み（友だち追加が必要）'
-        : t('line_description'),
+        : 'リマインダーや通知をLINEで送信します。',
       icon: <MessageOutlined style={{ color: '#52c41a' }} />,
       connected: lineConnected,
       loading: lineLoading,
@@ -378,19 +376,16 @@ export default function SettingsPage() {
   if (checkingAuth) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-        <Spin>{t('checking_auth_status')}</Spin>
+        <Spin>認証ステータスを確認中...</Spin>
       </div>
     );
   }
 
-
-
   return (
     <div>
-      <Title level={2} style={{ margin: 0 }}>{t('settings')}</Title>
+      <Title level={2} style={{ margin: 0 }}>設定</Title>
 
-
-      <Card title={t('integrations')} variant="borderless" className="wafu-card">
+      <Card title="連携" variant="borderless" className="wafu-card">
         <div className="ant-list ant-list-split">
           {integrations.map((item) => (
             <div key={item.id} className="ant-list-item brush-border-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
@@ -506,30 +501,11 @@ export default function SettingsPage() {
         <div style={{ marginTop: 16, padding: 12, background: isGoogleAuth ? 'rgba(183, 235, 143, 0.1)' : 'rgba(255, 251, 230, 0.5)', border: isGoogleAuth ? '1px solid #b7eb8f' : '1px solid #ffe58f', borderRadius: 4 }}>
           <Typography.Text type="secondary">
             {isGoogleAuth ? (
-              <><strong>{t('attention')}:</strong> {t('note_google_calendar_enabled')}</>
+              <><strong>注意:</strong> Googleカレンダー連携が有効です。次回の1on1セッションをスケジュールできます。</>
             ) : (
-              <><strong>{t('restriction')}:</strong> {t('restriction_google_calendar_requires_login')}</>
+              <><strong>制限:</strong> Googleカレンダー連携を使用するには、Googleアカウントでログインしてください。</>
             )}
           </Typography.Text>
-        </div>
-      </Card>
-
-      <Card title={t('display_settings')} variant="borderless" style={{ marginTop: 24 }} className="wafu-card">
-        <div style={{ maxWidth: 400 }}>
-          <div style={{ marginBottom: 16 }}>
-            <Typography.Text strong>{t('language')}</Typography.Text>
-            <Select
-              value={language}
-              onChange={setLanguage}
-              style={{ width: 200, marginTop: 8 }}
-            >
-              <Select.Option value="ja">日本語</Select.Option>
-              <Select.Option value="en">English</Select.Option>
-            </Select>
-            <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-              {t('language_description')}
-            </Typography.Text>
-          </div>
         </div>
       </Card>
     </div >

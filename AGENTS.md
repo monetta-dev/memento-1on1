@@ -180,7 +180,6 @@ vi.mock('@/lib/supabase', () => ({
 - **Theming**: Custom theme in `theme/themeConfig.ts`
 
 ### Internationalization
-- **Language Context**: Use `useLanguage()` hook from `contexts/LanguageContext`
 - **Translation Keys**: Use `t('key')` function for dynamic text
 - **Fallbacks**: Japanese as default, English as alternative
 
