@@ -38,7 +38,16 @@ interface MindMapPanelProps {
 }
 
 const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => {
-  const { getNodes, getEdges, setCenter, getViewport } = useReactFlow<CustomNode, Edge>();
+  const { getNodes, getEdges, setCenter, getViewport, fitView } = useReactFlow<CustomNode, Edge>();
+
+  // Initial fit view
+  useEffect(() => {
+    // Small timeout to allow nodes to render
+    const timer = setTimeout(() => {
+      fitView();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [fitView]);
 
   // Use Zundo Store
   const nodes = useMindMapStore((state) => state.nodes);
@@ -163,13 +172,20 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
     if (focusNodeId) {
       const focusNode = finalNodes.find(n => n.id === focusNodeId);
       if (focusNode && focusNode.position) {
-        const x = focusNode.position.x + (focusNode.width || 150) / 2;
-        const y = focusNode.position.y + (focusNode.height || 40) / 2;
         const { zoom } = getViewport();
-        setCenter(x, y, { duration: 800, zoom });
+        // Use fitView to robustly focus on the node using ReactFlow's internal logic
+        // We set minZoom and maxZoom to current zoom to prevent zooming in/out, just pan.
+        setTimeout(() => {
+          fitView({
+            nodes: [{ id: focusNodeId }],
+            duration: 800,
+            minZoom: zoom,
+            maxZoom: zoom,
+          });
+        }, 0);
       }
     }
-  }, [setNodes, setEdges, setCenter, getViewport]); // Store actions are stable
+  }, [setNodes, setEdges, setCenter, getViewport, fitView]); // Store actions are stable
 
   // Update ref whenever applyAutoLayout changes
   useEffect(() => {
@@ -194,7 +210,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
       data: { label: 'New Topic', expanded: true },
       type: 'mindMap',
       selected: true, // Auto-select new node
-      width: 150,
+      width: 172,
       height: 50,
     };
 
@@ -246,7 +262,7 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
       data: { label: 'New Topic', expanded: true },
       type: 'mindMap',
       selected: true, // Auto-select
-      width: 150,
+      width: 172,
       height: 50,
     };
 
@@ -457,13 +473,16 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
 
       const nextNode = currentNodes.find(n => n.id === nextNodeId);
       if (nextNode && nextNode.position) {
-        const x = nextNode.position.x + (nextNode.width || 150) / 2;
-        const y = nextNode.position.y + (nextNode.height || 40) / 2;
         const { zoom } = getViewport();
-        setCenter(x, y, { duration: 300, zoom });
+        fitView({
+          nodes: [{ id: nextNodeId }],
+          duration: 300,
+          minZoom: zoom,
+          maxZoom: zoom,
+        });
       }
     }
-  }, [getNodes, getEdges, getSelectedNode, setNodes, setCenter, getViewport, pause, resume]);
+  }, [getNodes, getEdges, getSelectedNode, setNodes, setCenter, getViewport, pause, resume, fitView]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -536,7 +555,6 @@ const MindMapContent: React.FC<MindMapPanelProps> = ({ isReadOnly = false }) => 
         onConnect={onConnectStore}
         onNodeDoubleClick={onNodeDoubleClickInternal}
         onKeyDown={onKeyDown}
-        fitView
         selectNodesOnDrag={false}
         nodesDraggable={false}
         nodeTypes={nodeTypes}
